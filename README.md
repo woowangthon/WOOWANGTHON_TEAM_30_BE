@@ -22,7 +22,7 @@ server/    FastAPI + SQLAlchemy 2 + Alembic + PostgreSQL 16, ffmpeg, 작업 워�
 shared/    공통 스키마(schema.json → Pydantic·TS 코드 생성), 질문 카드 72개
 fixtures/  가상 샘플 공간, 골든 세트, 테스트용 합성 오디오와 mock 자막
 docs/      결정 기록, 현황, 배포, 개인정보, 생성형 AI 사용 내역, 변경 기록
-render.yaml  Render 무료 등급 배포(웹·API·DB)
+render.yaml  Render 무료 등급 배포(웹·API, DB는 Neon)
 ```
 
 처리 흐름: 올리기 → 정규화(16kHz mono) → 받아쓰기(STT) → 목소리 나누기 → 문장 클립(2~30초) → 주제 태그 → 색인
@@ -81,7 +81,7 @@ createdb -O yeoun yeoun && createdb -O yeoun yeoun_test
 
 ## 배포 (Render)
 
-`render.yaml` 하나로 웹(Node)·API(Docker, ffmpeg 포함)·DB(PostgreSQL 16)가 무료 등급으로 뜹니다. 클릭 순서와 넣을 환경 변수는 [docs/DEPLOY.md](docs/DEPLOY.md)를 보세요.
+`render.yaml` 하나로 웹(Node)·API(Docker, ffmpeg 포함)가 Render 무료 등급으로 뜨고, DB는 Neon 무료 PostgreSQL을 연결합니다. 클릭 순서와 넣을 환경 변수는 [docs/DEPLOY.md](docs/DEPLOY.md)를 보세요.
 
 무료 등급은 15분 동안 요청이 없으면 잠듭니다. 웹이 시작할 때 API를 함께 깨우고, 화면은 "서버를 깨우는 중이에요" 안내와 함께 최대 2분 자동으로 다시 시도합니다.
 
