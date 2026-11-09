@@ -32,6 +32,8 @@ ROUTERS = [
     "ahead",
     "settings_routes",
     "members",
+    "notices",
+    "collections",
 ]
 
 
