@@ -329,7 +329,13 @@ def _tag_clips(db: Session, asset: Asset, consent: bool, is_sample: bool) -> str
                 note = "AI 태깅에 실패해 규칙으로 태그를 붙였어요."
     question_tags: list[str] = []
     if asset.question_text:
-        question_tags = rule_tags(asset.question_text)
+        # 질문 카드에 붙은 태그 + 질문 문장 분석 (질문과 연결된 답은 이 태그로도 찾는다)
+        from app.routers.ahead import deck
+        from app.search.lexicon import analyze
+
+        card = next((c for c in deck().cards if c.id == asset.question_id), None)
+        question_tags = list(dict.fromkeys(list(card.tags or []) if card else []))
+        question_tags += [t for t in analyze(asset.question_text).tags if t not in question_tags]
     for c in clips:
         tags = tagged.get(c.id)
         if tags is None:

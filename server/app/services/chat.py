@@ -12,7 +12,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from app.ai import guard, registry
@@ -40,7 +40,11 @@ def load_docs(db: Session, space_id: str) -> list[ClipDoc]:
         select(Clip, Asset)
         .join(Asset, Asset.id == Clip.asset_id)
         .outerjoin(Speaker, Speaker.id == Clip.speaker_id)
-        .where(Clip.space_id == space_id, included_expr(), func.length(Clip.text) > 0)
+        .where(
+            Clip.space_id == space_id,
+            included_expr(),
+            or_(func.length(Clip.text) > 0, Asset.question_text.is_not(None)),
+        )
         .order_by(Asset.recorded_at.nullslast(), Clip.seq)
     ).all()
     tok_name = get_tokenizer().name
@@ -91,7 +95,11 @@ def _nearby(
         select(Clip.id, Clip.tags)
         .join(Asset, Asset.id == Clip.asset_id)
         .outerjoin(Speaker, Speaker.id == Clip.speaker_id)
-        .where(Clip.space_id == space.id, included_expr(), func.length(Clip.text) > 0)
+        .where(
+            Clip.space_id == space.id,
+            included_expr(),
+            or_(func.length(Clip.text) > 0, Asset.question_text.is_not(None)),
+        )
     )
     rows = db.execute(base.order_by(Asset.recorded_at.desc().nullslast(), Clip.seq)).all()
     picked: list[str] = []

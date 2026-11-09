@@ -84,7 +84,8 @@ def make_clips(segments: list[TranscriptSegment], duration: float) -> list[ClipS
             merged_dur = s.end - g[0].start
             same_speaker = last.speaker == s.speaker
             close = s.start - last.end <= MAX_GAP
-            incomplete = bool(last.text.strip()) and not _SENT_END.search(last.text.strip())
+            # 자막이 없는 구간(규칙 기반 분할)은 30초까지 이어 붙인다
+            incomplete = not last.text.strip() or not _SENT_END.search(last.text.strip())
             if same_speaker and close and merged_dur <= MAX_LEN and (g_dur < MIN_LEN or incomplete):
                 g.append(s)
                 continue
