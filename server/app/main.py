@@ -20,7 +20,7 @@ log = logging.getLogger("yeoun.http")
 UNSAFE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
 CSRF_HEADER = "x-yeoun-request"
 
-ROUTERS = ["meta", "auth", "spaces"]
+ROUTERS = ["meta", "auth", "spaces", "assets", "media"]
 
 
 class RequestGuardMiddleware(BaseHTTPMiddleware):
@@ -31,6 +31,14 @@ class RequestGuardMiddleware(BaseHTTPMiddleware):
         if request.method in UNSAFE_METHODS and request.url.path.startswith("/api/"):
             if request.headers.get(CSRF_HEADER) != "1":
                 return JSONResponse(status_code=403, content=error_body("csrf_failed"))
+            # 본문을 다 받기 전에 너무 큰 요청을 거절한다 (파일 상한 + 여유 2MB)
+            limit = (max(get_settings().max_file_mb, 12) + 2) * 1024 * 1024
+            try:
+                length = int(request.headers.get("content-length") or 0)
+            except ValueError:
+                length = 0
+            if length > limit:
+                return JSONResponse(status_code=413, content=error_body("file_too_large"))
         response = await call_next(request)
         response.headers.setdefault("X-Content-Type-Options", "nosniff")
         response.headers.setdefault("Referrer-Policy", "no-referrer")

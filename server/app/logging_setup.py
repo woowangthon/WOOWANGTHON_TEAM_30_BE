@@ -56,7 +56,7 @@ def setup_logging() -> None:
     root.handlers = [handler]
     root.setLevel(s.log_level.upper())
     # 외부 라이브러리의 상세 로그(요청 URL·본문 가능)는 줄인다
-    for noisy in ("httpx", "httpcore", "botocore", "boto3", "urllib3", "multipart", "PIL"):
+    for noisy in ("httpx", "httpx2", "httpcore", "botocore", "boto3", "urllib3", "multipart", "PIL"):
         logging.getLogger(noisy).setLevel(logging.WARNING)
     logging.getLogger("uvicorn.access").disabled = True
     root._yeoun_configured = True  # type: ignore[attr-defined]

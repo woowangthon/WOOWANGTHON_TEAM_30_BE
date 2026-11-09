@@ -68,9 +68,11 @@ def _clean_db():
     objects = _TMP / "objects"
     if objects.exists():
         shutil.rmtree(objects)
+    from app.routers import auth
     from app.search import index
 
     index._CACHE.clear()
+    auth._attempts.clear()
     yield
 
 

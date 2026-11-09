@@ -18,6 +18,7 @@ dependencies = [
   "pillow>=10.4",
   "pillow-heif>=0.18",
   "numpy>=1.26",
+  "anthropic>=1.0",
 ]
 
 [project.optional-dependencies]
@@ -44,6 +45,7 @@ target-version = "py311"
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP", "S"]
 ignore = [
+  "E501",  # 줄 길이는 ruff format이 맞춘다 (긴 한국어 문자열은 허용)
   "S101",  # assert는 테스트에서 씀
   "S311",  # 보안 용도가 아닌 random
   "B008",  # FastAPI Depends 기본값
