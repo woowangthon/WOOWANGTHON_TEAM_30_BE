@@ -1,0 +1,90 @@
+# 여운 — Render Blueprint (친구 테스트용 staging)
+# Render 대시보드 → New → Blueprint → 이 저장소를 고르면 아래 3개가 무료 등급으로 만들어진다.
+#   - yeoun-db  : PostgreSQL 16
+#   - yeoun-api : FastAPI (Docker, ffmpeg 포함)
+#   - yeoun-web : Next.js (Node)
+# 자세한 순서와 넣을 값: docs/DEPLOY.md
+#
+# 무료 등급 제약에 맞춘 설정:
+#   - 15분 동안 요청이 없으면 잠든다 → 웹은 시작할 때 API를 깨우고, 화면은 최대 2분 자동 재시도
+#   - 영구 디스크가 없다 → 파일은 DB에 암호화 저장(YEOUN_STORAGE=db), 파일·공간 용량 상한
+#   - 메모리 512MB → 형태소 분석기 대신 가벼운 lite 토크나이저
+#   - 백그라운드 워커가 없다 → API 프로세스 안에서 처리(YEOUN_WORKER_INLINE=true)
+
+databases:
+  - name: yeoun-db
+    plan: free
+    databaseName: yeoun
+    user: yeoun
+    postgresMajorVersion: "16"
+    region: singapore # API·웹과 같은 지역이어야 내부 주소로 연결된다
+    ipAllowList: [] # 외부 접속 막기 (Render 내부에서만)
+
+services:
+  - type: web
+    name: yeoun-api
+    runtime: docker
+    plan: free
+    region: singapore
+    dockerfilePath: ./server/Dockerfile
+    dockerContext: .
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: YEOUN_DATABASE_URL
+        fromDatabase:
+          name: yeoun-db
+          property: connectionString
+      - key: YEOUN_ENV
+        value: staging
+      - key: YEOUN_STORAGE
+        value: db
+      - key: YEOUN_WORKER_INLINE
+        value: "true"
+      - key: YEOUN_TOKENIZER
+        value: lite
+      - key: YEOUN_MAX_FILE_MB
+        value: "25"
+      - key: YEOUN_SPACE_QUOTA_MB
+        value: "150"
+      - key: YEOUN_USER_UPLOAD_QUOTA_MB
+        value: "300"
+      - key: YEOUN_CHAT_DAILY_LIMIT
+        value: "150"
+      - key: YEOUN_SAMPLE_CHAT_PER_MINUTE
+        value: "60"
+      # 비밀 값: Render가 무작위로 만든다. 마스터 키를 바꾸거나 잃으면 저장된 파일을 읽을 수 없다.
+      - key: YEOUN_MASTER_KEY
+        generateValue: true
+      - key: YEOUN_SESSION_SECRET
+        generateValue: true
+      # 대시보드에서 직접 넣는 값 (sync: false)
+      - key: YEOUN_INVITE_CODES # 친구에게 나눠 줄 초대 코드, 쉼표로 여러 개 (필수)
+        sync: false
+      - key: YEOUN_PUBLIC_WEB_URL # 녹음·초대 링크 주소. 비우면 브라우저 주소를 쓴다 (선택)
+        sync: false
+      - key: YEOUN_ANTHROPIC_API_KEY # 선택: 클립 고르기·태깅 (기본 모델 claude-haiku-5-5)
+        sync: false
+      - key: YEOUN_OPENAI_API_KEY # 선택: 음성 인식(whisper)·화자 분리·임베딩
+        sync: false
+      - key: YEOUN_GEMINI_API_KEY # 선택: 무료 등급은 동의한 사용자에게만 쓴다
+        sync: false
+
+  - type: web
+    name: yeoun-web
+    runtime: node
+    plan: free
+    region: singapore
+    rootDir: web
+    buildCommand: npm ci --no-audit --no-fund && npm run build
+    startCommand: npm run start
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: NEXT_TELEMETRY_DISABLED
+        value: "1"
+      # yeoun-api의 공개 주소 (예: https://yeoun-api.onrender.com). rewrites는 빌드 때 정해지므로
+      # 값을 바꾸면 web을 다시 배포해야 한다. (필수)
+      - key: YEOUN_API_ORIGIN
+        sync: false

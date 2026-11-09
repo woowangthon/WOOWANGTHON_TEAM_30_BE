@@ -1,0 +1,10 @@
+{
+  "_note": "fixtures/upload/통화 녹음 엄마_240315_190000.m4a(합성 톤, 사람 목소리 아님)의 mock STT 결과. 가상 대화.",
+  "segments": [
+    {"start": 0.1, "end": 4.5, "text": "엄마, 나 오늘 면접 보고 왔어.", "speaker": "A", "confidence": 0.93},
+    {"start": 6.1, "end": 10.5, "text": "그래, 고생 많았다. 결과가 어떻든 너는 최선을 다했으니까 그걸로 됐다.", "speaker": "B", "confidence": 0.91},
+    {"start": 12.1, "end": 16.5, "text": "엄마는 저녁 먹었어?", "speaker": "A", "confidence": 0.95},
+    {"start": 18.1, "end": 22.5, "text": "엄마는 먹었지. 너도 늦게라도 밥 꼭 챙겨 먹어라.", "speaker": "B", "confidence": 0.9},
+    {"start": 24.1, "end": 28.5, "text": "날이 추우니까 따뜻하게 입고 다니고, 집에 들어가면 문자 해.", "speaker": "B", "confidence": 0.89}
+  ]
+}

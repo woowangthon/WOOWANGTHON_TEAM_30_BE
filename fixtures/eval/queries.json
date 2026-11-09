@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "queries": [
+    {"id": "e01", "query": "할머니 김치찌개 어떻게 끓였어?", "expected": ["demo-04"], "note": "레시피, 같은 단어"},
+    {"id": "e02", "query": "된장찌개 끓이는 법 알려줘", "expected": ["demo-09"], "note": "레시피"},
+    {"id": "e03", "query": "할머니가 제일 잘하던 요리가 뭐였지?", "expected": ["demo-36"], "note": "미리 남기기 답변, 바꿔 말하기"},
+    {"id": "e04", "query": "오늘 내 생일이야", "expected": ["demo-10"], "note": "생일 미역국"},
+    {"id": "e05", "query": "오늘 밥도 못 먹었어", "expected": ["demo-40"], "note": "끼니 챙기라는 안부"},
+    {"id": "e06", "query": "감기 걸렸어", "expected": ["demo-07"], "note": "감기"},
+    {"id": "e07", "query": "요즘 계속 밤새고 있어", "expected": ["demo-17"], "note": "잠 좀 자라"},
+    {"id": "e08", "query": "몸이 안 좋은데 병원 가기 싫어", "expected": ["demo-19"], "note": "병원 가라"},
+    {"id": "e09", "query": "약 먹는 거 자꾸 까먹어", "expected": ["demo-33"], "note": "약 챙겨 먹어라"},
+    {"id": "e10", "query": "오늘도 야근해서 늦게 들어가", "expected": ["demo-27"], "note": "늦은 퇴근 걱정"},
+    {"id": "e11", "query": "내일 중요한 시험 봐", "expected": ["demo-02"], "note": "시험 전 응원"},
+    {"id": "e12", "query": "오늘 시험 망쳤어", "expected": ["demo-12"], "note": "시험 후 위로"},
+    {"id": "e13", "query": "내일 면접 보러 가요", "expected": ["demo-23"], "note": "면접 응원"},
+    {"id": "e14", "query": "오늘 첫 출근했어", "expected": ["demo-24"], "note": "첫 출근"},
+    {"id": "e15", "query": "회사 그만두고 싶어", "expected": ["demo-34"], "note": "힘들면 쉬어라, 바꿔 말하기"},
+    {"id": "e16", "query": "나 잘하고 있는 걸까?", "expected": ["demo-35", "demo-18"], "note": "자기 확신 부족"},
+    {"id": "e17", "query": "너무 속상해서 눈물이 나", "expected": ["demo-22"], "note": "울어도 괜찮다"},
+    {"id": "e18", "query": "요즘 많이 지치고 힘들어", "expected": ["demo-37", "demo-35"], "note": "위로, 감정 표현"},
+    {"id": "e19", "query": "친구랑 크게 다퉜어", "expected": ["demo-26"], "note": "친구와 다툼"},
+    {"id": "e20", "query": "할머니 나 대학 합격했어!", "expected": ["demo-03"], "note": "칭찬, 대견하다"},
+    {"id": "e21", "query": "설날에 떡국 먹고 싶다", "expected": ["demo-13"], "note": "설 떡국"},
+    {"id": "e22", "query": "이번 추석엔 못 내려가", "expected": ["demo-21"], "note": "추석 못 와도 괜찮다"},
+    {"id": "e23", "query": "오늘 엄청 춥다", "expected": ["demo-08"], "note": "추위, 옷 따뜻하게"},
+    {"id": "e24", "query": "할아버지랑 어떻게 만났어?", "expected": ["demo-38"], "note": "미리 남기기 답변"},
+    {"id": "e25", "query": "할머니 고향 바다 얘기 해 줘", "expected": ["demo-11"], "note": "어린 시절 고향"},
+    {"id": "e26", "query": "할머니는 젊었을 때 무슨 일 했어?", "expected": ["demo-14"], "note": "시장 장사"},
+    {"id": "e27", "query": "나 다음 달에 결혼해", "expected": ["demo-39"], "note": "미리 남기기 결혼 조언"},
+    {"id": "e28", "query": "할머니 보고 싶어요", "expected": ["demo-29"], "note": "그리움"},
+    {"id": "e29", "query": "할머니 노래 듣고 싶어", "expected": ["demo-16"], "note": "노래 흥얼"},
+    {"id": "e30", "query": "사랑해요 할머니", "expected": ["demo-01"], "note": "사랑한다"}
+  ],
+  "no_match": [
+    {"id": "n01", "query": "비트코인 사도 될까?", "note": "샘플 녹음에 관련 내용 없음"},
+    {"id": "n02", "query": "자동차 엔진오일은 언제 갈아야 돼?", "note": "자동차 정비 — 관련 내용 없음"},
+    {"id": "n03", "query": "파리 에펠탑 가 본 적 있어?", "note": "해외여행 — 언급한 적 없음"},
+    {"id": "n04", "query": "노트북이 갑자기 안 켜져", "note": "전자기기 고장 — 관련 내용 없음"}
+  ]
+}

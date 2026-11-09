@@ -1,0 +1,15 @@
+# 로컬 개발용 PostgreSQL 16. `make db-up`
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: yeoun
+      POSTGRES_PASSWORD: yeoun
+      POSTGRES_DB: yeoun
+    ports:
+      - "5432:5432"
+    volumes:
+      - yeoun-db:/var/lib/postgresql/data
+      - ./scripts/init-test-db.sql:/docker-entrypoint-initdb.d/init-test-db.sql:ro
+volumes:
+  yeoun-db:
