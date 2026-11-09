@@ -1,0 +1,717 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Yeoun shared API schema",
+  "description": "여운의 web·server 공통 스키마. 이 파일을 고친 뒤 `make gen`으로 TS 타입과 Pydantic 모델을 다시 만든다.",
+  "$defs": {
+    "Tag": {
+      "description": "정해진 태그 목록. 태깅(LLM·규칙)은 이 안에서만 고른다.",
+      "type": "string",
+      "enum": [
+        "음식", "요리", "건강", "걱정", "공부", "일", "살림", "돈", "칭찬", "응원", "위로", "사랑", "그리움",
+        "명절", "생일", "날씨", "계절", "여행", "어린시절", "젊은시절", "결혼", "조언", "잔소리", "웃음",
+        "안부", "감사", "노래",
+        "아들", "딸", "손주", "배우자", "부모님", "형제자매", "친구", "이웃",
+        "집", "고향", "시장", "병원", "학교", "직장", "바다", "산", "밭"
+      ]
+    },
+    "Intent": {
+      "description": "대화 의도. 검색 때 관련 태그에 가산점을 준다.",
+      "type": "string",
+      "enum": ["comfort", "cheer", "praise", "advice", "food", "health", "miss", "greeting", "story", "celebrate", "general"]
+    },
+    "CareLevel": {
+      "description": "마음 돌봄 위험 수준. high면 클립보다 도움 안내를 먼저 보여 준다.",
+      "type": "string",
+      "enum": ["none", "watch", "high"]
+    },
+    "AssetKind": { "type": "string", "enum": ["audio", "video", "photo"] },
+    "AssetSource": {
+      "description": "upload: 직접 올림, ahead: 미리 남기기 녹음, sample: 샘플",
+      "type": "string",
+      "enum": ["upload", "ahead", "sample"]
+    },
+    "OriginLabel": {
+      "description": "자료 출처 종류(사용자가 고르거나 파일명으로 추정)",
+      "type": "string",
+      "enum": ["call", "video", "voice_message", "ahead", "other"]
+    },
+    "AssetStatus": { "type": "string", "enum": ["uploaded", "queued", "processing", "ready", "failed"] },
+    "StageName": { "type": "string", "enum": ["normalize", "stt", "diarize", "segment", "tag", "index"] },
+    "StageState": { "type": "string", "enum": ["pending", "running", "done", "skipped", "failed"] },
+    "DateSource": {
+      "description": "날짜를 어디서 알아냈는지",
+      "type": "string",
+      "enum": ["metadata", "filename", "exif", "user", "upload", "unknown"]
+    },
+    "SpeakerRole": { "type": "string", "enum": ["person", "other", "unknown"] },
+    "MemberRole": { "type": "string", "enum": ["owner", "editor", "viewer"] },
+    "AudioStatus": {
+      "description": "ready: 재생 가능, placeholder: 샘플 녹음 준비 중, missing: 파일 없음",
+      "type": "string",
+      "enum": ["ready", "placeholder", "missing"]
+    },
+    "ProviderFunction": { "type": "string", "enum": ["stt", "diarization", "llm", "embedding"] },
+    "ProviderStatus": {
+      "type": "string",
+      "enum": ["active", "not_configured", "blocked_by_policy", "needs_consent", "model_missing"]
+    },
+    "LinkStatus": { "type": "string", "enum": ["active", "completed", "expired", "revoked"] },
+    "QuestionCategory": {
+      "type": "string",
+      "enum": ["childhood", "youth", "love_family", "to_family", "life_advice", "food", "holidays", "everyday", "health_heart", "custom"]
+    },
+
+    "ErrorBody": {
+      "type": "object",
+      "required": ["code", "message_ko"],
+      "properties": {
+        "code": { "type": "string", "description": "기계가 읽는 오류 코드 (예: not_found, quota_exceeded)" },
+        "message_ko": { "type": "string", "description": "사용자에게 보여 줄 한국어 문구" }
+      }
+    },
+    "ErrorResponse": {
+      "type": "object",
+      "required": ["error"],
+      "properties": { "error": { "$ref": "#/$defs/ErrorBody" } }
+    },
+    "Health": {
+      "type": "object",
+      "required": ["ok", "version", "db"],
+      "properties": {
+        "ok": { "type": "boolean" },
+        "version": { "type": "string" },
+        "db": { "type": "boolean" }
+      }
+    },
+    "AppLimits": {
+      "type": "object",
+      "required": ["max_file_mb", "space_quota_mb", "user_upload_quota_mb", "chat_daily_limit", "allowed_extensions"],
+      "properties": {
+        "max_file_mb": { "type": "integer" },
+        "space_quota_mb": { "type": "integer", "description": "0이면 제한 없음" },
+        "user_upload_quota_mb": { "type": "integer", "description": "0이면 제한 없음" },
+        "chat_daily_limit": { "type": "integer", "description": "0이면 제한 없음" },
+        "allowed_extensions": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "AppConfig": {
+      "type": "object",
+      "required": ["env", "signup_requires_invite", "sample_space_id", "limits", "stt_available"],
+      "properties": {
+        "env": { "type": "string", "enum": ["development", "staging", "production", "test"] },
+        "signup_requires_invite": { "type": "boolean" },
+        "sample_space_id": { "type": ["string", "null"] },
+        "limits": { "$ref": "#/$defs/AppLimits" },
+        "stt_available": { "type": "boolean", "description": "음성으로 말 걸기(실제 음성 인식)가 가능한지" }
+      }
+    },
+
+    "UserPrefs": {
+      "type": "object",
+      "required": ["large_text", "rest_reminder", "rest_minutes", "consent_training_providers"],
+      "properties": {
+        "large_text": { "type": "boolean", "default": false },
+        "rest_reminder": { "type": "boolean", "default": true, "description": "오래 사용하면 쉬어 가기 안내" },
+        "rest_minutes": { "type": "integer", "default": 40, "minimum": 10, "maximum": 240 },
+        "consent_training_providers": {
+          "type": "boolean",
+          "default": false,
+          "description": "입력을 학습에 쓰는 무료 AI 등급 사용 동의 (staging에서만 의미 있음)"
+        }
+      }
+    },
+    "UserPrefsUpdate": {
+      "type": "object",
+      "properties": {
+        "large_text": { "type": ["boolean", "null"] },
+        "rest_reminder": { "type": ["boolean", "null"] },
+        "rest_minutes": { "type": ["integer", "null"], "minimum": 10, "maximum": 240 },
+        "consent_training_providers": { "type": ["boolean", "null"] }
+      }
+    },
+    "User": {
+      "type": "object",
+      "required": ["id", "email", "display_name", "prefs", "created_at"],
+      "properties": {
+        "id": { "type": "string" },
+        "email": { "type": "string" },
+        "display_name": { "type": "string" },
+        "prefs": { "$ref": "#/$defs/UserPrefs" },
+        "created_at": { "type": "string", "format": "date-time" }
+      }
+    },
+    "SignupRequest": {
+      "type": "object",
+      "required": ["email", "password", "display_name"],
+      "properties": {
+        "email": { "type": "string", "maxLength": 254 },
+        "password": { "type": "string", "minLength": 8, "maxLength": 200 },
+        "display_name": { "type": "string", "minLength": 1, "maxLength": 40 },
+        "invite_code": { "type": ["string", "null"], "maxLength": 100 }
+      }
+    },
+    "LoginRequest": {
+      "type": "object",
+      "required": ["email", "password"],
+      "properties": {
+        "email": { "type": "string", "maxLength": 254 },
+        "password": { "type": "string", "maxLength": 200 }
+      }
+    },
+    "DeleteAccountRequest": {
+      "type": "object",
+      "required": ["password"],
+      "properties": { "password": { "type": "string", "maxLength": 200 } }
+    },
+
+    "SpaceCounts": {
+      "type": "object",
+      "required": ["assets", "clips", "person_clips", "photos", "pending_voice", "processing"],
+      "properties": {
+        "assets": { "type": "integer" },
+        "clips": { "type": "integer" },
+        "person_clips": { "type": "integer", "description": "대화에 쓰이는(그 사람 목소리로 확인된) 클립 수" },
+        "photos": { "type": "integer" },
+        "pending_voice": { "type": "integer", "description": "목소리 확인이 필요한 자료 수" },
+        "processing": { "type": "integer" }
+      }
+    },
+    "Space": {
+      "type": "object",
+      "required": ["id", "name", "person_name", "is_sample", "role", "counts", "storage_bytes", "storage_limit_bytes", "created_at"],
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string", "description": "공간 이름 (예: 엄마)" },
+        "person_name": { "type": "string", "description": "그 사람의 이름 또는 부르는 말" },
+        "relationship": { "type": ["string", "null"] },
+        "birthday": { "type": ["string", "null"], "format": "date" },
+        "memorial_day": { "type": ["string", "null"], "format": "date" },
+        "note": { "type": ["string", "null"] },
+        "is_sample": { "type": "boolean" },
+        "role": { "$ref": "#/$defs/MemberRole" },
+        "counts": { "$ref": "#/$defs/SpaceCounts" },
+        "storage_bytes": { "type": "integer" },
+        "storage_limit_bytes": { "type": "integer", "description": "0이면 제한 없음" },
+        "created_at": { "type": "string", "format": "date-time" }
+      }
+    },
+    "SpaceCreate": {
+      "type": "object",
+      "required": ["name", "person_name"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1, "maxLength": 40 },
+        "person_name": { "type": "string", "minLength": 1, "maxLength": 40 },
+        "relationship": { "type": ["string", "null"], "maxLength": 40 },
+        "birthday": { "type": ["string", "null"], "format": "date" },
+        "memorial_day": { "type": ["string", "null"], "format": "date" },
+        "note": { "type": ["string", "null"], "maxLength": 500 }
+      }
+    },
+    "SpaceUpdate": {
+      "type": "object",
+      "properties": {
+        "name": { "type": ["string", "null"], "minLength": 1, "maxLength": 40 },
+        "person_name": { "type": ["string", "null"], "minLength": 1, "maxLength": 40 },
+        "relationship": { "type": ["string", "null"], "maxLength": 40 },
+        "birthday": { "type": ["string", "null"], "format": "date" },
+        "memorial_day": { "type": ["string", "null"], "format": "date" },
+        "note": { "type": ["string", "null"], "maxLength": 500 }
+      }
+    },
+    "DeleteSpaceRequest": {
+      "type": "object",
+      "required": ["confirm_name"],
+      "properties": { "confirm_name": { "type": "string", "description": "실수 방지를 위해 공간 이름을 그대로 입력" } }
+    },
+
+    "AssetStage": {
+      "type": "object",
+      "required": ["name", "state"],
+      "properties": {
+        "name": { "$ref": "#/$defs/StageName" },
+        "state": { "$ref": "#/$defs/StageState" },
+        "note": { "type": ["string", "null"], "description": "예: '음성 인식 키가 없어 기본 방식으로 처리했어요'" }
+      }
+    },
+    "Asset": {
+      "type": "object",
+      "required": ["id", "kind", "source", "origin", "filename", "size_bytes", "date_source", "status", "stages", "progress", "clip_count", "created_at"],
+      "properties": {
+        "id": { "type": "string" },
+        "kind": { "$ref": "#/$defs/AssetKind" },
+        "source": { "$ref": "#/$defs/AssetSource" },
+        "origin": { "$ref": "#/$defs/OriginLabel" },
+        "filename": { "type": "string" },
+        "size_bytes": { "type": "integer" },
+        "duration_sec": { "type": ["number", "null"] },
+        "recorded_at": { "type": ["string", "null"], "format": "date" },
+        "date_source": { "$ref": "#/$defs/DateSource" },
+        "status": { "$ref": "#/$defs/AssetStatus" },
+        "stages": { "type": "array", "items": { "$ref": "#/$defs/AssetStage" } },
+        "progress": { "type": "number", "description": "0~1" },
+        "error": { "anyOf": [{ "$ref": "#/$defs/ErrorBody" }, { "type": "null" }] },
+        "clip_count": { "type": "integer" },
+        "thumb_url": { "type": ["string", "null"], "description": "사진일 때 서명된 미리보기 URL" },
+        "created_at": { "type": "string", "format": "date-time" }
+      }
+    },
+    "AssetUpdate": {
+      "type": "object",
+      "properties": {
+        "recorded_at": { "type": ["string", "null"], "format": "date" },
+        "origin": { "anyOf": [{ "$ref": "#/$defs/OriginLabel" }, { "type": "null" }] }
+      }
+    },
+    "AssetList": {
+      "type": "object",
+      "required": ["assets"],
+      "properties": { "assets": { "type": "array", "items": { "$ref": "#/$defs/Asset" } } }
+    },
+
+    "PhotoRef": {
+      "type": "object",
+      "required": ["asset_id", "url"],
+      "properties": {
+        "asset_id": { "type": "string" },
+        "url": { "type": "string", "description": "짧게 만료되는 서명 URL" },
+        "date": { "type": ["string", "null"], "format": "date" },
+        "caption": { "type": ["string", "null"] }
+      }
+    },
+    "ClipCard": {
+      "type": "object",
+      "description": "그 사람이 실제로 한 말(원본 녹음 클립). transcript는 언제나 DB에 저장된 원문 자막이며 AI가 만든 문장이 아니다.",
+      "required": ["clip_id", "transcript", "source_label", "audio_status", "photos", "tags", "favorite", "start_sec", "end_sec"],
+      "properties": {
+        "clip_id": { "type": "string" },
+        "transcript": { "type": "string" },
+        "date": { "type": ["string", "null"], "format": "date" },
+        "date_label": { "type": ["string", "null"], "description": "예: 2019년 2월 4일 / 날짜 모름" },
+        "source_label": { "type": "string", "description": "예: 통화 녹음 · 2019년 2월" },
+        "audio_url": { "type": ["string", "null"] },
+        "audio_status": { "$ref": "#/$defs/AudioStatus" },
+        "start_sec": { "type": "number" },
+        "end_sec": { "type": "number" },
+        "photos": { "type": "array", "items": { "$ref": "#/$defs/PhotoRef" } },
+        "question": { "type": ["string", "null"], "description": "미리 남기기 질문에 대한 답일 때 그 질문" },
+        "tags": { "type": "array", "items": { "$ref": "#/$defs/Tag" } },
+        "favorite": { "type": "boolean" },
+        "reason": { "type": ["string", "null"], "description": "여운 안내: 이 클립을 고른 이유(그 사람의 말이 아님)" }
+      }
+    },
+
+    "Clip": {
+      "type": "object",
+      "required": ["id", "asset_id", "start_sec", "end_sec", "text", "text_edited", "tags", "included", "audio_status"],
+      "properties": {
+        "id": { "type": "string" },
+        "asset_id": { "type": "string" },
+        "speaker_id": { "type": ["string", "null"] },
+        "start_sec": { "type": "number" },
+        "end_sec": { "type": "number" },
+        "text": { "type": "string" },
+        "text_edited": { "type": "boolean" },
+        "tags": { "type": "array", "items": { "$ref": "#/$defs/Tag" } },
+        "included": { "type": "boolean", "description": "대화에 쓰이는지(최종 판단)" },
+        "include_override": { "type": ["boolean", "null"], "description": "클립별 직접 포함/제외. null이면 화자 선택을 따름" },
+        "audio_url": { "type": ["string", "null"] },
+        "audio_status": { "$ref": "#/$defs/AudioStatus" },
+        "confidence": { "type": ["number", "null"] }
+      }
+    },
+    "ClipUpdate": {
+      "type": "object",
+      "properties": {
+        "text": { "type": ["string", "null"], "maxLength": 1000 },
+        "include_override": { "type": ["boolean", "null"] },
+        "clear_override": { "type": ["boolean", "null"], "description": "true면 클립별 설정을 지우고 화자 선택을 따른다" },
+        "tags": { "type": ["array", "null"], "items": { "$ref": "#/$defs/Tag" } }
+      }
+    },
+    "Speaker": {
+      "type": "object",
+      "required": ["id", "asset_id", "label", "role", "clip_count", "samples"],
+      "properties": {
+        "id": { "type": "string" },
+        "asset_id": { "type": "string" },
+        "label": { "type": "string", "description": "예: 목소리 1" },
+        "role": { "$ref": "#/$defs/SpeakerRole" },
+        "clip_count": { "type": "integer" },
+        "total_sec": { "type": ["number", "null"] },
+        "samples": { "type": "array", "items": { "$ref": "#/$defs/Clip" }, "description": "대표 구간" }
+      }
+    },
+    "SpeakerUpdate": {
+      "type": "object",
+      "required": ["role"],
+      "properties": { "role": { "$ref": "#/$defs/SpeakerRole" } }
+    },
+    "VoiceReviewAsset": {
+      "type": "object",
+      "required": ["asset", "speakers", "diarized", "needs_review"],
+      "properties": {
+        "asset": { "$ref": "#/$defs/Asset" },
+        "speakers": { "type": "array", "items": { "$ref": "#/$defs/Speaker" } },
+        "diarized": { "type": "boolean", "description": "false면 화자 분리 없이 파일 단위로 고른다" },
+        "needs_review": { "type": "boolean" }
+      }
+    },
+    "VoiceReview": {
+      "type": "object",
+      "required": ["person_name", "assets", "pending_count"],
+      "properties": {
+        "person_name": { "type": "string" },
+        "assets": { "type": "array", "items": { "$ref": "#/$defs/VoiceReviewAsset" } },
+        "pending_count": { "type": "integer" }
+      }
+    },
+    "ClipList": {
+      "type": "object",
+      "required": ["clips"],
+      "properties": { "clips": { "type": "array", "items": { "$ref": "#/$defs/Clip" } } }
+    },
+
+    "ChatRequest": {
+      "type": "object",
+      "required": ["message"],
+      "properties": {
+        "message": { "type": "string", "minLength": 1, "maxLength": 500 }
+      }
+    },
+    "CareResource": {
+      "type": "object",
+      "required": ["name", "phone", "hours"],
+      "properties": {
+        "name": { "type": "string" },
+        "phone": { "type": "string" },
+        "hours": { "type": "string" },
+        "description": { "type": ["string", "null"] }
+      }
+    },
+    "CareNotice": {
+      "type": "object",
+      "required": ["level", "title", "message", "resources"],
+      "properties": {
+        "level": { "$ref": "#/$defs/CareLevel" },
+        "title": { "type": "string" },
+        "message": { "type": "string" },
+        "resources": { "type": "array", "items": { "$ref": "#/$defs/CareResource" } }
+      }
+    },
+    "GuideMessage": {
+      "type": "object",
+      "description": "여운 안내: 서비스가 하는 말. 그 사람이 한 말처럼 보이게 쓰지 않는다.",
+      "required": ["text"],
+      "properties": { "text": { "type": "string" } }
+    },
+    "ChatResponse": {
+      "type": "object",
+      "required": ["guide", "clips", "matched", "nearby", "keywords", "picker"],
+      "properties": {
+        "care": { "anyOf": [{ "$ref": "#/$defs/CareNotice" }, { "type": "null" }] },
+        "guide": { "$ref": "#/$defs/GuideMessage" },
+        "clips": { "type": "array", "items": { "$ref": "#/$defs/ClipCard" }, "maxItems": 3 },
+        "matched": { "type": "boolean", "description": "false면 '딱 맞는 녹음은 없어요'" },
+        "nearby": { "type": "array", "items": { "$ref": "#/$defs/ClipCard" }, "description": "맞는 녹음이 없을 때 보여 줄 가까운 추억" },
+        "intent": { "anyOf": [{ "$ref": "#/$defs/Intent" }, { "type": "null" }] },
+        "keywords": { "type": "array", "items": { "type": "string" } },
+        "picker": { "type": "string", "description": "클립을 고른 방식 (mock, anthropic 등)" },
+        "remaining_today": { "type": ["integer", "null"] }
+      }
+    },
+    "TranscribeResponse": {
+      "type": "object",
+      "required": ["text"],
+      "properties": { "text": { "type": "string" } }
+    },
+
+    "TranscriptSegment": {
+      "type": "object",
+      "description": "STT 결과 형식",
+      "required": ["start", "end", "text"],
+      "properties": {
+        "start": { "type": "number" },
+        "end": { "type": "number" },
+        "text": { "type": "string" },
+        "speaker": { "type": ["string", "null"] },
+        "confidence": { "type": ["number", "null"] }
+      }
+    },
+
+    "LLMIntent": {
+      "type": "object",
+      "description": "LLM 의도 파악 출력. 서버에서 이 스키마로 검증한다.",
+      "required": ["intent", "keywords", "tags", "risk"],
+      "properties": {
+        "intent": { "$ref": "#/$defs/Intent" },
+        "keywords": { "type": "array", "items": { "type": "string", "maxLength": 20 }, "maxItems": 8 },
+        "tags": { "type": "array", "items": { "$ref": "#/$defs/Tag" }, "maxItems": 5 },
+        "risk": { "$ref": "#/$defs/CareLevel" }
+      }
+    },
+    "LLMPick": {
+      "type": "object",
+      "required": ["clip_id", "reason"],
+      "properties": {
+        "clip_id": { "type": "string" },
+        "reason": { "type": "string", "maxLength": 120 }
+      }
+    },
+    "LLMSelection": {
+      "type": "object",
+      "description": "LLM 클립 고르기 출력. 후보에 없는 clip_id, 지어낸 인용은 서버가 버린다.",
+      "required": ["picks", "no_good_match", "guide"],
+      "properties": {
+        "picks": { "type": "array", "items": { "$ref": "#/$defs/LLMPick" }, "maxItems": 3 },
+        "no_good_match": { "type": "boolean" },
+        "guide": { "type": "string", "maxLength": 200 }
+      }
+    },
+    "LLMClipTags": {
+      "type": "object",
+      "required": ["clip_id", "tags"],
+      "properties": {
+        "clip_id": { "type": "string" },
+        "tags": { "type": "array", "items": { "$ref": "#/$defs/Tag" }, "maxItems": 5 }
+      }
+    },
+    "LLMTagging": {
+      "type": "object",
+      "required": ["clips"],
+      "properties": { "clips": { "type": "array", "items": { "$ref": "#/$defs/LLMClipTags" } } }
+    },
+
+    "TimelineItem": {
+      "type": "object",
+      "required": ["kind"],
+      "properties": {
+        "kind": { "type": "string", "enum": ["clip", "photo"] },
+        "clip": { "anyOf": [{ "$ref": "#/$defs/ClipCard" }, { "type": "null" }] },
+        "photo": { "anyOf": [{ "$ref": "#/$defs/PhotoRef" }, { "type": "null" }] }
+      }
+    },
+    "TimelineDay": {
+      "type": "object",
+      "required": ["date", "label", "items"],
+      "properties": {
+        "date": { "type": ["string", "null"], "format": "date" },
+        "label": { "type": "string" },
+        "items": { "type": "array", "items": { "$ref": "#/$defs/TimelineItem" } }
+      }
+    },
+    "Timeline": {
+      "type": "object",
+      "required": ["days", "on_this_day", "tag_counts", "total"],
+      "properties": {
+        "days": { "type": "array", "items": { "$ref": "#/$defs/TimelineDay" } },
+        "on_this_day": { "type": "array", "items": { "$ref": "#/$defs/TimelineItem" }, "description": "1년 전(또는 그 전) 오늘" },
+        "tag_counts": { "type": "object", "additionalProperties": { "type": "integer" } },
+        "total": { "type": "integer" }
+      }
+    },
+    "FavoriteUpdate": {
+      "type": "object",
+      "required": ["favorite"],
+      "properties": { "favorite": { "type": "boolean" } }
+    },
+
+    "QuestionCard": {
+      "type": "object",
+      "required": ["id", "category", "text"],
+      "properties": {
+        "id": { "type": "string" },
+        "category": { "$ref": "#/$defs/QuestionCategory" },
+        "text": { "type": "string" },
+        "tags": { "type": "array", "items": { "$ref": "#/$defs/Tag" } }
+      }
+    },
+    "QuestionCategoryInfo": {
+      "type": "object",
+      "required": ["id", "label"],
+      "properties": { "id": { "$ref": "#/$defs/QuestionCategory" }, "label": { "type": "string" } }
+    },
+    "QuestionDeck": {
+      "type": "object",
+      "required": ["categories", "cards"],
+      "properties": {
+        "categories": { "type": "array", "items": { "$ref": "#/$defs/QuestionCategoryInfo" } },
+        "cards": { "type": "array", "items": { "$ref": "#/$defs/QuestionCard" } }
+      }
+    },
+    "RecordingLinkCreate": {
+      "type": "object",
+      "required": ["question_ids"],
+      "properties": {
+        "question_ids": { "type": "array", "items": { "type": "string" }, "maxItems": 20 },
+        "custom_questions": { "type": "array", "items": { "type": "string", "minLength": 2, "maxLength": 120 }, "maxItems": 5 },
+        "sender_name": { "type": ["string", "null"], "maxLength": 40, "description": "녹음하는 분께 보일 보낸 사람 이름" },
+        "message": { "type": ["string", "null"], "maxLength": 300, "description": "녹음하는 분께 보일 한마디" },
+        "expires_days": { "type": "integer", "minimum": 1, "maximum": 30, "default": 7 }
+      }
+    },
+    "LinkQuestion": {
+      "type": "object",
+      "required": ["id", "text", "answered"],
+      "properties": {
+        "id": { "type": "string" },
+        "text": { "type": "string" },
+        "answered": { "type": "boolean" },
+        "asset_id": { "type": ["string", "null"] }
+      }
+    },
+    "RecordingLink": {
+      "type": "object",
+      "required": ["id", "status", "questions", "answered_count", "expires_at", "created_at"],
+      "properties": {
+        "id": { "type": "string" },
+        "url": { "type": ["string", "null"], "description": "만들 때 한 번만 내려 준다 (토큰은 서버에 해시로만 저장)" },
+        "status": { "$ref": "#/$defs/LinkStatus" },
+        "sender_name": { "type": ["string", "null"] },
+        "questions": { "type": "array", "items": { "$ref": "#/$defs/LinkQuestion" } },
+        "answered_count": { "type": "integer" },
+        "expires_at": { "type": "string", "format": "date-time" },
+        "created_at": { "type": "string", "format": "date-time" }
+      }
+    },
+    "RecordingLinkList": {
+      "type": "object",
+      "required": ["links"],
+      "properties": { "links": { "type": "array", "items": { "$ref": "#/$defs/RecordingLink" } } }
+    },
+    "RecorderSession": {
+      "type": "object",
+      "description": "로그인 없이 녹음하는 화면에 내려 주는 정보",
+      "required": ["questions", "expires_at", "consent_text", "max_seconds"],
+      "properties": {
+        "sender_name": { "type": ["string", "null"] },
+        "message": { "type": ["string", "null"] },
+        "questions": { "type": "array", "items": { "$ref": "#/$defs/LinkQuestion" } },
+        "expires_at": { "type": "string", "format": "date-time" },
+        "consent_text": { "type": "string" },
+        "max_seconds": { "type": "integer" }
+      }
+    },
+
+    "ProviderInfo": {
+      "type": "object",
+      "required": ["function", "provider", "display_name", "is_external", "trains_on_input", "data_sent", "retention_note", "status"],
+      "properties": {
+        "function": { "$ref": "#/$defs/ProviderFunction" },
+        "provider": { "type": "string" },
+        "display_name": { "type": "string" },
+        "is_external": { "type": "boolean" },
+        "trains_on_input": { "type": "boolean", "description": "입력 데이터를 학습에 쓰는 등급인지" },
+        "data_sent": { "type": "string", "description": "이 서비스로 보내는 데이터 (예: 오디오, 자막 텍스트)" },
+        "retention_note": { "type": "string" },
+        "status": { "$ref": "#/$defs/ProviderStatus" },
+        "note": { "type": ["string", "null"] }
+      }
+    },
+    "ProviderList": {
+      "type": "object",
+      "required": ["providers", "retention"],
+      "properties": {
+        "providers": { "type": "array", "items": { "$ref": "#/$defs/ProviderInfo" } },
+        "retention": { "type": "array", "items": { "type": "string" }, "description": "여운이 자료를 보관하는 기간 안내" }
+      }
+    },
+
+    "Member": {
+      "type": "object",
+      "required": ["user_id", "display_name", "email", "role"],
+      "properties": {
+        "user_id": { "type": "string" },
+        "display_name": { "type": "string" },
+        "email": { "type": "string" },
+        "role": { "$ref": "#/$defs/MemberRole" }
+      }
+    },
+    "MemberList": {
+      "type": "object",
+      "required": ["members", "invites"],
+      "properties": {
+        "members": { "type": "array", "items": { "$ref": "#/$defs/Member" } },
+        "invites": { "type": "array", "items": { "$ref": "#/$defs/Invite" } }
+      }
+    },
+    "MemberUpdate": {
+      "type": "object",
+      "required": ["role"],
+      "properties": { "role": { "$ref": "#/$defs/MemberRole" } }
+    },
+    "InviteCreate": {
+      "type": "object",
+      "required": ["role"],
+      "properties": { "role": { "$ref": "#/$defs/MemberRole" } }
+    },
+    "Invite": {
+      "type": "object",
+      "required": ["id", "role", "expires_at"],
+      "properties": {
+        "id": { "type": "string" },
+        "role": { "$ref": "#/$defs/MemberRole" },
+        "url": { "type": ["string", "null"] },
+        "expires_at": { "type": "string", "format": "date-time" }
+      }
+    },
+    "InvitePreview": {
+      "type": "object",
+      "required": ["space_name", "inviter_name", "role"],
+      "properties": {
+        "space_name": { "type": "string" },
+        "inviter_name": { "type": "string" },
+        "role": { "$ref": "#/$defs/MemberRole" }
+      }
+    },
+
+    "Notice": {
+      "type": "object",
+      "description": "앱 안 알림(기일·생일). 밤 늦게(22시~8시) 새로 띄우지 않는다.",
+      "required": ["id", "kind", "space_id", "title", "message"],
+      "properties": {
+        "id": { "type": "string" },
+        "kind": { "type": "string", "enum": ["birthday", "memorial", "on_this_day"] },
+        "space_id": { "type": "string" },
+        "title": { "type": "string" },
+        "message": { "type": "string" }
+      }
+    },
+    "NoticeList": {
+      "type": "object",
+      "required": ["notices"],
+      "properties": { "notices": { "type": "array", "items": { "$ref": "#/$defs/Notice" } } }
+    },
+
+    "Collection": {
+      "type": "object",
+      "required": ["id", "title", "clip_ids", "created_at"],
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "clip_ids": { "type": "array", "items": { "type": "string" } },
+        "clips": { "type": "array", "items": { "$ref": "#/$defs/ClipCard" } },
+        "created_at": { "type": "string", "format": "date-time" }
+      }
+    },
+    "CollectionCreate": {
+      "type": "object",
+      "required": ["title"],
+      "properties": {
+        "title": { "type": "string", "minLength": 1, "maxLength": 60 },
+        "clip_ids": { "type": "array", "items": { "type": "string" }, "maxItems": 200 }
+      }
+    },
+    "CollectionUpdate": {
+      "type": "object",
+      "properties": {
+        "title": { "type": ["string", "null"], "minLength": 1, "maxLength": 60 },
+        "clip_ids": { "type": ["array", "null"], "items": { "type": "string" }, "maxItems": 200 }
+      }
+    },
+    "CollectionList": {
+      "type": "object",
+      "required": ["collections"],
+      "properties": { "collections": { "type": "array", "items": { "$ref": "#/$defs/Collection" } } }
+    }
+  }
+}
