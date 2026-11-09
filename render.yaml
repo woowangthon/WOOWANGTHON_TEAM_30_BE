@@ -1,8 +1,10 @@
 # 여운 — Render Blueprint (친구 테스트용 staging)
-# Render 대시보드 → New → Blueprint → 이 저장소를 고르면 아래 3개가 무료 등급으로 만들어진다.
-#   - yeoun-db  : PostgreSQL 16
+# Render 대시보드 → New → Blueprint → 이 저장소를 고르면 아래 2개가 무료 등급으로 만들어진다.
 #   - yeoun-api : FastAPI (Docker, ffmpeg 포함)
 #   - yeoun-web : Next.js (Node)
+# DB는 Render가 아니라 Neon 무료 PostgreSQL을 쓴다(YEOUN_DATABASE_URL에 직접 넣음).
+#   - Render 무료 PostgreSQL은 작업 공간당 1개뿐이라(이미 다른 프로젝트가 쓰는 중) 만들 수 없었다.
+#   - Render 무료 DB는 30일 뒤 만료되지만 Neon 무료 DB는 만료가 없어 심사 기간(~12/10)까지 안전하다.
 # 자세한 순서와 넣을 값: docs/DEPLOY.md
 #
 # 무료 등급 제약에 맞춘 설정:
@@ -10,15 +12,6 @@
 #   - 영구 디스크가 없다 → 파일은 DB에 암호화 저장(YEOUN_STORAGE=db), 파일·공간 용량 상한
 #   - 메모리 512MB → 형태소 분석기 대신 가벼운 lite 토크나이저
 #   - 백그라운드 워커가 없다 → API 프로세스 안에서 처리(YEOUN_WORKER_INLINE=true)
-
-databases:
-  - name: yeoun-db
-    plan: free
-    databaseName: yeoun
-    user: yeoun
-    postgresMajorVersion: "16"
-    region: singapore # API·웹과 같은 지역이어야 내부 주소로 연결된다
-    ipAllowList: [] # 외부 접속 막기 (Render 내부에서만)
 
 services:
   - type: web
@@ -31,10 +24,9 @@ services:
     healthCheckPath: /api/health
     autoDeploy: true
     envVars:
+      # Neon 연결 주소 (Connection pooling 끈 직접 연결, ...?sslmode=require 포함). 서버가 postgresql+psycopg://로 바꿔 읽는다 (필수)
       - key: YEOUN_DATABASE_URL
-        fromDatabase:
-          name: yeoun-db
-          property: connectionString
+        sync: false
       - key: YEOUN_ENV
         value: staging
       - key: YEOUN_STORAGE

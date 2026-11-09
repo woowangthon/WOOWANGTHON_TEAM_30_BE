@@ -2,6 +2,12 @@
 
 대회 기간 개선 내역의 증빙으로 쓴다. 날짜는 한국 시간 기준.
 
+## 2026-11-10
+
+### 배포 — DB를 Neon으로
+- Render 무료 PostgreSQL은 작업 공간당 1개라 Blueprint에서 `yeoun-db`를 만들 수 없었다(같은 작업 공간의 다른 프로젝트가 사용 중). 만료가 없는 Neon 무료 PostgreSQL을 쓰도록 `render.yaml`에서 DB를 빼고 `YEOUN_DATABASE_URL`을 직접 넣게 바꿨다.
+- DEPLOY.md·README·STATUS·TODO-team을 같이 고쳤다(Neon 만들기 순서, 계산 시간 100 CU-시간 주의).
+
 ## 2026-11-09
 
 ### 1단계 — 스키마·뼈대·make 명령

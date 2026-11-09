@@ -6,7 +6,7 @@
 
 | 이름 | 종류 | 하는 일 |
 |---|---|---|
-| `yeoun-db` | PostgreSQL 16 | 계정·자막·검색 색인, 그리고 암호화된 파일(무료 등급은 디스크가 없어서) |
+| Neon `yeoun` | PostgreSQL (Neon 무료) | 계정·자막·검색 색인, 그리고 암호화된 파일(Render 무료 등급은 디스크가 없어서). Render 밖에서 따로 만든다 |
 | `yeoun-api` | Web Service (Docker) | FastAPI 서버 + ffmpeg. 올린 파일 처리도 이 안에서 함 |
 | `yeoun-web` | Web Service (Node) | Next.js 화면. 브라우저의 `/api` 요청을 `yeoun-api`로 넘김 |
 
@@ -15,19 +15,24 @@
 ## 0. 준비
 
 1. 이 저장소가 GitHub에 있고, 배포할 브랜치(보통 `main`)에 코드가 합쳐져 있어야 해요.
-2. https://render.com 에 GitHub 계정으로 가입하고, Render가 이 저장소를 읽을 수 있게 허용해 주세요.
-3. 친구들에게 나눠 줄 **초대 코드**를 하나 정하세요. 예: `yeoun-friends-1109` (여러 개면 쉼표로 `코드1,코드2`)
+2. **Neon에서 DB 만들기** (Render 무료 PostgreSQL은 작업 공간당 1개뿐이고 30일 뒤 만료돼서, 만료 없는 Neon 무료 DB를 써요)
+   1. https://neon.com 에 GitHub 계정으로 가입해요.
+   2. **New Project** → Project name `yeoun`, Postgres version `16`, Region **AWS Asia Pacific (Singapore)** (Render 서버와 같은 지역) → **Create project**.
+   3. 대시보드의 **Connect** 버튼 → **Connection pooling을 끈 상태**의 연결 주소(`postgresql://...neon.tech/neondb?sslmode=require...`)를 복사해 둬요. 1단계에서 `YEOUN_DATABASE_URL`에 넣어요. 비밀번호가 들어 있으니 다른 곳에 올리지 마세요.
+3. https://render.com 에 GitHub 계정으로 가입하고, Render가 이 저장소를 읽을 수 있게 허용해 주세요.
+4. 친구들에게 나눠 줄 **초대 코드**를 하나 정하세요. 예: `yeoun-friends-1109` (여러 개면 쉼표로 `코드1,코드2`)
 
 ## 1. Blueprint로 한 번에 만들기
 
 1. Render 대시보드 오른쪽 위 **New +** → **Blueprint**
 2. 저장소 `yeoun` 선택 → **Connect**
 3. Blueprint Name에 `yeoun` 입력, Branch는 `main`
-4. Render가 `render.yaml`을 읽고 `yeoun-db`, `yeoun-api`, `yeoun-web` 세 개를 보여 줍니다.
+4. Render가 `render.yaml`을 읽고 `yeoun-api`, `yeoun-web` 두 개를 보여 줍니다. (DB는 0단계의 Neon)
 5. 아래쪽에 **직접 넣어야 하는 값**(sync: false) 입력칸이 나와요:
 
 | 변수 | 어디 | 넣을 값 | 필수 |
 |---|---|---|---|
+| `YEOUN_DATABASE_URL` | yeoun-api | 0단계에서 복사한 Neon 연결 주소 | 필수 |
 | `YEOUN_INVITE_CODES` | yeoun-api | 0단계에서 정한 초대 코드 | 필수 |
 | `YEOUN_API_ORIGIN` | yeoun-web | `https://yeoun-api.onrender.com` (아래 주의 참고) | 필수 |
 | `YEOUN_PUBLIC_WEB_URL` | yeoun-api | 비워 두기 (브라우저 주소를 자동으로 씀) | 선택 |
@@ -91,7 +96,7 @@ API 주소로 직접 확인할 수도 있어요: `https://<api 주소>/api/confi
 
 | 변수 | 기본값(render.yaml) | 설명 |
 |---|---|---|
-| `YEOUN_DATABASE_URL` | yeoun-db에서 자동 | DB 주소 |
+| `YEOUN_DATABASE_URL` | (직접) | Neon 연결 주소. 서버가 `postgresql+psycopg://`로 바꿔 읽어요 |
 | `YEOUN_ENV` | `staging` | `staging`: 초대 코드·이용 한도. `production`: 학습에 쓰는 무료 AI 금지 |
 | `YEOUN_MASTER_KEY` | 자동 생성 | 파일 암호화 키. **백업 필수, 바꾸지 말 것** |
 | `YEOUN_SESSION_SECRET` | 자동 생성 | 서명 URL·세션용 |
@@ -100,7 +105,7 @@ API 주소로 직접 확인할 수도 있어요: `https://<api 주소>/api/confi
 | `YEOUN_WORKER_INLINE` | `true` | 무료 등급엔 백그라운드 워커가 없어 API 안에서 처리 |
 | `YEOUN_TOKENIZER` | `lite` | 메모리 512MB라 lite. 유료 인스턴스면 `kiwi`(이미지 빌드 시 `WITH_KIWI=true`) |
 | `YEOUN_MAX_FILE_MB` | `25` | 파일 하나 상한 |
-| `YEOUN_SPACE_QUOTA_MB` | `150` | 공간 하나의 저장 상한 (무료 DB는 1GB) |
+| `YEOUN_SPACE_QUOTA_MB` | `150` | 공간 하나의 저장 상한 (Neon 무료 DB는 프로젝트당 1GB) |
 | `YEOUN_USER_UPLOAD_QUOTA_MB` | `300` | 사용자 한 명이 올릴 수 있는 총량 |
 | `YEOUN_CHAT_DAILY_LIMIT` | `150` | 사용자당 하루 대화 횟수 |
 | `YEOUN_SAMPLE_CHAT_PER_MINUTE` | `60` | 로그인 없는 샘플 체험의 분당 횟수(접속 주소별) |
@@ -125,8 +130,8 @@ R2(실사용 저장소)를 쓸 때 추가: `YEOUN_STORAGE=s3`, `YEOUN_S3_BUCKET`
 
 - **잠들기**: 15분 동안 요청이 없으면 서비스가 잠들어요. 다시 열면 30초~1분 뒤에 깨어나요. 웹이 깨어날 때 API도 함께 깨우고(`web/src/instrumentation.ts`), 화면은 API가 HTML·502·연결 실패를 돌려주면 "서버를 깨우는 중이에요"를 띄우고 최대 2분 동안 자동으로 다시 시도해요.
 - **처리 중에 잠들면**: 올린 파일 처리 중 서버가 잠들거나 다시 시작되면, 다음에 깨어날 때 남은 작업을 이어서 해요(최대 3번). 그래도 안 되면 '실패'로 표시되고 '다시 처리하기'를 누르면 돼요.
-- **DB 30일**: Render 무료 PostgreSQL은 만든 뒤 30일이 지나면 만료돼요(정책은 바뀔 수 있음). 오래 쓰려면 유료로 올리거나, 만료 전에 공간을 내보내기 해 두세요.
-- **용량**: 무료 DB는 1GB예요. 파일도 DB에 넣으므로 공간·사용자 상한을 낮게 잡아 두었어요.
+- **DB**: Neon 무료 DB는 만료가 없지만 5분 동안 쓰지 않으면 잠들어요(다음 요청 때 1초 안팎으로 깨어남). 무료 계산 시간이 프로젝트당 한 달 100 CU-시간이라, **UptimeRobot 등으로 24시간 깨워 두지 마세요**(한 달 내내 깨어 있으면 넘칩니다). 깨워 둬야 하면 심사 기간처럼 꼭 필요한 며칠만.
+- **용량**: Neon 무료 DB는 프로젝트당 1GB예요. 파일도 DB에 넣으므로 공간·사용자 상한을 낮게 잡아 두었어요.
 - **사용 시간**: 무료 인스턴스 시간은 워크스페이스 전체에 월 한도가 있어요. 웹·API 두 개가 함께 써요.
 
 ## 문제 해결
