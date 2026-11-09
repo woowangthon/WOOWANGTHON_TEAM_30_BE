@@ -48,7 +48,9 @@ def test_caption_edit_reindexes(client, db):
     sid = space["id"]
     clips = client.get(f"/api/spaces/{sid}/assets/{asset['id']}/clips").json()["clips"]
     target = clips[1]
-    r = client.patch(f"/api/spaces/{sid}/clips/{target['id']}", json={"text": "그래, 고생 많았다. 된장찌개 끓여 놓을게."})
+    r = client.patch(
+        f"/api/spaces/{sid}/clips/{target['id']}", json={"text": "그래, 고생 많았다. 된장찌개 끓여 놓을게."}
+    )
     assert r.status_code == 200
     body = r.json()
     assert body["text_edited"] is True

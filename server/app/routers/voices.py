@@ -12,8 +12,8 @@ from app.db import get_db
 from app.errors import ApiError
 from app.models import Asset, Clip, Space, Speaker
 from app.pipeline.process import index_clips
-from app.schemas import ClipList, ClipUpdate, SpeakerUpdate, VoiceReview, VoiceReviewAsset
 from app.schemas import Clip as ClipOut
+from app.schemas import ClipList, ClipUpdate, SpeakerUpdate, VoiceReview, VoiceReviewAsset
 from app.schemas import Speaker as SpeakerOut
 from app.security.auth import SpaceAccess, space_editor, space_reader
 from app.services.assets import asset_out, clip_out
@@ -48,7 +48,9 @@ def voice_review(access: SpaceAccess = Depends(space_reader), db: Session = Depe
     if not assets:
         return VoiceReview(person_name=space.person_name, assets=[], pending_count=0)
     asset_ids = [a.id for a in assets]
-    speakers = db.scalars(select(Speaker).where(Speaker.asset_id.in_(asset_ids)).order_by(Speaker.created_at)).all()
+    speakers = db.scalars(
+        select(Speaker).where(Speaker.asset_id.in_(asset_ids)).order_by(Speaker.created_at)
+    ).all()
     clips = db.scalars(select(Clip).where(Clip.asset_id.in_(asset_ids)).order_by(Clip.seq)).all()
     by_speaker: dict[str, list[Clip]] = defaultdict(list)
     for c in clips:
@@ -92,7 +94,10 @@ def voice_review(access: SpaceAccess = Depends(space_reader), db: Session = Depe
 
 @router.patch("/spaces/{space_id}/speakers/{speaker_id}", response_model=SpeakerOut)
 def set_speaker_role(
-    speaker_id: str, body: SpeakerUpdate, access: SpaceAccess = Depends(space_editor), db: Session = Depends(get_db)
+    speaker_id: str,
+    body: SpeakerUpdate,
+    access: SpaceAccess = Depends(space_editor),
+    db: Session = Depends(get_db),
 ) -> SpeakerOut:
     speaker = db.get(Speaker, speaker_id)
     if speaker is None or speaker.space_id != access.space.id:
@@ -116,7 +121,9 @@ def set_speaker_role(
 
 
 @router.get("/spaces/{space_id}/assets/{asset_id}/clips", response_model=ClipList)
-def asset_clips(asset_id: str, access: SpaceAccess = Depends(space_reader), db: Session = Depends(get_db)) -> ClipList:
+def asset_clips(
+    asset_id: str, access: SpaceAccess = Depends(space_reader), db: Session = Depends(get_db)
+) -> ClipList:
     asset = db.get(Asset, asset_id)
     if asset is None or asset.space_id != access.space.id:
         raise ApiError(404, "not_found")
