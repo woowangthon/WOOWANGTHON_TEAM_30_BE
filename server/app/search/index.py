@@ -106,8 +106,12 @@ class SpaceIndex:
         word_scores = self.words.score(weights)
         gram_scores = self.grams.score(query_grams)
 
-        # confidence: 질문 낱말(원문)과 태그 각각이 얼마나 맞았는지 (idf 가중)
-        units = [(u, self.idf(u)) for u in base_words if len(u) >= 1] + [
+        # confidence: 질문의 대표 낱말과 태그가 얼마나 맞았는지 (idf 가중, 한 글자 낱말은 반만)
+        unit_words: list[str] = []
+        for u in tok.units(query) + tok.units(norm):
+            if u not in unit_words:
+                unit_words.append(u)
+        units = [(u, self.idf(u) * (0.5 if len(u) == 1 else 1.0)) for u in unit_words] + [
             (t, min(self.idf(t), self.max_idf) * 0.8) for t in tag_terms
         ]
         total = sum(w for _, w in units) or 1.0

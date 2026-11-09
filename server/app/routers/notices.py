@@ -83,8 +83,8 @@ def build_notices(db: Session, user: User, now: dt.datetime) -> list[Notice]:
                     id=nid,
                     kind="on_this_day",
                     space_id=s.id,
-                    title="지난해 오늘의 목소리",
-                    message=f"{s.person_name}의 지난해 오늘 녹음이 있어요. 타임라인에서 들어 볼 수 있어요.",
+                    title="몇 해 전 오늘의 목소리",
+                    message=f"{s.person_name}의 몇 해 전 오늘 녹음이 있어요. 타임라인에서 들어 볼 수 있어요.",
                 )
             )
     return out

@@ -83,6 +83,29 @@ STOPWORDS = {
     "말",
     "얘기",
     "이야기",
+    # 부탁·질문 말투 (녹음 내용과 상관없는 말)
+    "법",
+    "방법",
+    "알리",
+    "알려",
+    "알려줘",
+    "들려",
+    "들려줘",
+    "말해",
+    "말해줘",
+    "해줘",
+    "줘",
+    "궁금",
+    "뭐였",
+    "뭐였지",
+    "뭐야",
+    "듣",
+    "싶",
+    "싶다",
+    "싶어",
+    "되",
+    "돼",
+    "될까",
 }
 
 # 길이가 긴 것부터 떼어 낸다
@@ -264,6 +287,7 @@ class Tokenizer(Protocol):
     name: str
 
     def tokenize(self, text: str) -> list[str]: ...
+    def units(self, text: str) -> list[str]: ...
 
 
 def _strip(word: str, suffixes: list[str], min_left: int = 1) -> str:
@@ -273,21 +297,41 @@ def _strip(word: str, suffixes: list[str], min_left: int = 1) -> str:
     return word
 
 
+STRONG_ENDINGS = ["다", "요", "어", "아", "고", "지", "네", "죠", "자", "게"]
+
+
 def lite_stems(word: str) -> list[str]:
-    """한 어절에서 조사·어미를 떼어 낸 줄기들."""
+    """한 어절에서 조사·어미를 떼어 낸 줄기들. 마지막이 대표 줄기다.
+
+    - 조사를 뗐으면 명사로 보고 어미는 더 떼지 않는다 (할머니가 → 할머니, '할머'가 되지 않게)
+    - 두 글자 낱말은 확실한 어미만 뗀다 (노래 → 노래, 먹고 → 먹)
+    """
     out = [word]
     s1 = _strip(word, JOSA)
-    if s1 != word:
+    if s1 != word and (len(s1) >= 2 or s1 in SHORT_NOUNS):
         out.append(s1)
-    s2 = _strip(s1, ENDINGS)
-    if s2 not in out:
+        return out
+    endings = STRONG_ENDINGS if len(word) <= 2 else ENDINGS
+    s2 = _strip(word, endings)
+    if s2 != word:
         out.append(s2)
-    # '-고 싶' / '-지 않' 같은 보조 용언 앞부분
     return [w for w in out if w]
 
 
 class LiteTokenizer:
     name = "lite"
+
+    def units(self, text: str) -> list[str]:
+        """질문의 뜻을 이루는 대표 줄기들 (일치도 계산용)."""
+        out: list[str] = []
+        for m in HANGUL_RUN.finditer(text.lower()):
+            word = m.group(0)
+            if word.isdigit():
+                continue
+            main = lite_stems(word)[-1]
+            if main and main not in STOPWORDS and main not in out:
+                out.append(main)
+        return out
 
     def tokenize(self, text: str) -> list[str]:
         tokens: list[str] = []
@@ -301,7 +345,7 @@ class LiteTokenizer:
             main = stems[-1]
             if main not in STOPWORDS and len(main) >= 1:
                 tokens.append(main)
-            if word != main and word not in STOPWORDS and len(word) >= 2:
+            if word != main and word not in STOPWORDS and len(word) >= 3:
                 tokens.append(word)
             tokens.extend(bigrams(word))
         return tokens
@@ -316,6 +360,13 @@ class KiwiTokenizer:
 
         self._kiwi = Kiwi(num_workers=-1, model_type="cong", load_typo_dict=False, load_multi_dict=False)
         self._lock = threading.Lock()
+
+    def units(self, text: str) -> list[str]:
+        out: list[str] = []
+        for t in self.tokenize(text):
+            if not t.startswith(BIGRAM_PREFIX) and t not in out:
+                out.append(t)
+        return out
 
     def tokenize(self, text: str) -> list[str]:
         with self._lock:
