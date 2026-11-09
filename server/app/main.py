@@ -20,7 +20,19 @@ log = logging.getLogger("yeoun.http")
 UNSAFE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
 CSRF_HEADER = "x-yeoun-request"
 
-ROUTERS = ["meta", "auth", "spaces", "assets", "media", "voices", "chat", "timeline", "ahead"]
+ROUTERS = [
+    "meta",
+    "auth",
+    "spaces",
+    "assets",
+    "media",
+    "voices",
+    "chat",
+    "timeline",
+    "ahead",
+    "settings_routes",
+    "members",
+]
 
 
 class RequestGuardMiddleware(BaseHTTPMiddleware):

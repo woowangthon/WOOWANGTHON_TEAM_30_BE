@@ -15,6 +15,7 @@ from app.models import Space, User
 from app.schemas import DeleteAccountRequest, LoginRequest, SignupRequest, UserPrefs, UserPrefsUpdate
 from app.schemas import User as UserOut
 from app.security.auth import (
+    COOKIE_NAME,
     burn_verify_time,
     clear_session,
     create_session,
@@ -156,7 +157,8 @@ def delete_account(
     owned = db.scalars(select(Space).where(Space.owner_id == user.id)).all()
     for space in owned:
         delete_space_completely(db, space)
-    clear_session(db, request, response)
+    # 세션 행은 사용자 삭제와 함께 FK CASCADE로 지워진다
+    response.delete_cookie(COOKIE_NAME, path="/")
     db.delete(user)
     db.commit()
     response.status_code = 204
