@@ -69,3 +69,10 @@
 ### P1 추가
 - 사진과 함께 듣기: 타임라인에서 같은 날 사진을 넘기며 그날의 원본 클립을 차례로 들려준다.
 - 클립 모음: 즐겨찾기로 모음 만들기, 모두 이어 듣기.
+
+### 10단계 — 문서
+- README(실행·배포), decisions(D1~D26), STATUS(된 것·안 된 것·사람이 할 일), DEPLOY(Render 클릭 순서·환경 변수·확인·문제 해결), TODO-team, privacy(처리방침 초안), GENAI_USAGE(공모전용), .env.example.
+- `make lint`가 생성 파일을 다시 포맷하지 않도록 ruff에서 제외.
+
+### 마지막 확인 (2026-11-09)
+- `make lint` 통과, `make test` 서버 99 + 웹 12 통과, `make e2e` 4 통과, `make eval` 통과(lite 96.7% / kiwi 100%, 없음 4/4).

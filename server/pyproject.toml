@@ -41,6 +41,7 @@ include = ["app*"]
 [tool.ruff]
 line-length = 110
 target-version = "py311"
+extend-exclude = ["app/schemas/generated.py"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP", "S"]

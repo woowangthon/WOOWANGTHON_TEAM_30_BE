@@ -167,9 +167,13 @@ def test_link_url_uses_browser_origin_when_not_configured(client):
     signup(client)
     sid = create_space(client)["id"]
     r = client.post(
-        f"/api/spaces/{sid}/links", json={"question_ids": ["q001"]}, headers={"origin": "https://yeoun-web.onrender.com"}
+        f"/api/spaces/{sid}/links",
+        json={"question_ids": ["q001"]},
+        headers={"origin": "https://yeoun-web.onrender.com"},
     )
     assert r.json()["url"].startswith("https://yeoun-web.onrender.com/r/")
     # 이상한 Origin(http 외부 주소)은 믿지 않는다
-    r = client.post(f"/api/spaces/{sid}/links", json={"question_ids": ["q001"]}, headers={"origin": "http://evil.example"})
+    r = client.post(
+        f"/api/spaces/{sid}/links", json={"question_ids": ["q001"]}, headers={"origin": "http://evil.example"}
+    )
     assert r.json()["url"].startswith("http://localhost:3000/r/")

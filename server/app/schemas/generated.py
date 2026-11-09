@@ -4,401 +4,193 @@
 from __future__ import annotations
 
 import datetime as dt
-from typing import Annotated, Literal, Optional
+from typing import Annotated, Any, Literal, Optional
 
 from pydantic import BaseModel, Field, StringConstraints
 
 __all__ = [
-    "Tag",
-    "TAG_VALUES",
-    "Intent",
-    "INTENT_VALUES",
-    "CareLevel",
-    "CARE_LEVEL_VALUES",
-    "AssetKind",
-    "ASSET_KIND_VALUES",
-    "AssetSource",
-    "ASSET_SOURCE_VALUES",
-    "OriginLabel",
-    "ORIGIN_LABEL_VALUES",
-    "AssetStatus",
-    "ASSET_STATUS_VALUES",
-    "StageName",
-    "STAGE_NAME_VALUES",
-    "StageState",
-    "STAGE_STATE_VALUES",
-    "DateSource",
-    "DATE_SOURCE_VALUES",
-    "SpeakerRole",
-    "SPEAKER_ROLE_VALUES",
-    "MemberRole",
-    "MEMBER_ROLE_VALUES",
-    "AudioStatus",
-    "AUDIO_STATUS_VALUES",
-    "ProviderFunction",
-    "PROVIDER_FUNCTION_VALUES",
-    "ProviderStatus",
-    "PROVIDER_STATUS_VALUES",
-    "LinkStatus",
-    "LINK_STATUS_VALUES",
-    "QuestionCategory",
-    "QUESTION_CATEGORY_VALUES",
-    "ErrorBody",
-    "ErrorResponse",
-    "Health",
-    "AppLimits",
-    "AppConfig",
-    "UserPrefs",
-    "UserPrefsUpdate",
-    "User",
-    "SignupRequest",
-    "LoginRequest",
-    "DeleteAccountRequest",
-    "SpaceCounts",
-    "Space",
-    "SpaceCreate",
-    "SpaceUpdate",
-    "DeleteSpaceRequest",
-    "AssetStage",
-    "Asset",
-    "AssetUpdate",
-    "AssetList",
-    "PhotoRef",
-    "ClipCard",
-    "Clip",
-    "ClipUpdate",
-    "Speaker",
-    "SpeakerUpdate",
-    "VoiceReviewAsset",
-    "VoiceReview",
-    "ClipList",
-    "ChatRequest",
-    "CareResource",
-    "CareNotice",
-    "GuideMessage",
-    "ChatResponse",
-    "TranscribeResponse",
-    "TranscriptSegment",
-    "LLMIntent",
-    "LLMPick",
-    "LLMSelection",
-    "LLMClipTags",
-    "LLMTagging",
-    "TimelineItem",
-    "TimelineDay",
-    "Timeline",
-    "FavoriteUpdate",
-    "QuestionCard",
-    "QuestionCategoryInfo",
-    "QuestionDeck",
-    "RecordingLinkCreate",
-    "LinkQuestion",
-    "RecordingLink",
-    "RecordingLinkList",
-    "RecorderSession",
-    "ProviderInfo",
-    "ProviderList",
-    "Member",
-    "MemberList",
-    "MemberUpdate",
-    "InviteCreate",
-    "Invite",
-    "InvitePreview",
-    "Notice",
-    "NoticeList",
-    "Collection",
-    "CollectionCreate",
-    "CollectionUpdate",
-    "CollectionList",
+    'Tag',
+    'TAG_VALUES',
+    'Intent',
+    'INTENT_VALUES',
+    'CareLevel',
+    'CARE_LEVEL_VALUES',
+    'AssetKind',
+    'ASSET_KIND_VALUES',
+    'AssetSource',
+    'ASSET_SOURCE_VALUES',
+    'OriginLabel',
+    'ORIGIN_LABEL_VALUES',
+    'AssetStatus',
+    'ASSET_STATUS_VALUES',
+    'StageName',
+    'STAGE_NAME_VALUES',
+    'StageState',
+    'STAGE_STATE_VALUES',
+    'DateSource',
+    'DATE_SOURCE_VALUES',
+    'SpeakerRole',
+    'SPEAKER_ROLE_VALUES',
+    'MemberRole',
+    'MEMBER_ROLE_VALUES',
+    'AudioStatus',
+    'AUDIO_STATUS_VALUES',
+    'ProviderFunction',
+    'PROVIDER_FUNCTION_VALUES',
+    'ProviderStatus',
+    'PROVIDER_STATUS_VALUES',
+    'LinkStatus',
+    'LINK_STATUS_VALUES',
+    'QuestionCategory',
+    'QUESTION_CATEGORY_VALUES',
+    'ErrorBody',
+    'ErrorResponse',
+    'Health',
+    'AppLimits',
+    'AppConfig',
+    'UserPrefs',
+    'UserPrefsUpdate',
+    'User',
+    'SignupRequest',
+    'LoginRequest',
+    'DeleteAccountRequest',
+    'SpaceCounts',
+    'Space',
+    'SpaceCreate',
+    'SpaceUpdate',
+    'DeleteSpaceRequest',
+    'AssetStage',
+    'Asset',
+    'AssetUpdate',
+    'AssetList',
+    'PhotoRef',
+    'ClipCard',
+    'Clip',
+    'ClipUpdate',
+    'Speaker',
+    'SpeakerUpdate',
+    'VoiceReviewAsset',
+    'VoiceReview',
+    'ClipList',
+    'ChatRequest',
+    'CareResource',
+    'CareNotice',
+    'GuideMessage',
+    'ChatResponse',
+    'TranscribeResponse',
+    'TranscriptSegment',
+    'LLMIntent',
+    'LLMPick',
+    'LLMSelection',
+    'LLMClipTags',
+    'LLMTagging',
+    'TimelineItem',
+    'TimelineDay',
+    'Timeline',
+    'FavoriteUpdate',
+    'QuestionCard',
+    'QuestionCategoryInfo',
+    'QuestionDeck',
+    'RecordingLinkCreate',
+    'LinkQuestion',
+    'RecordingLink',
+    'RecordingLinkList',
+    'RecorderSession',
+    'ProviderInfo',
+    'ProviderList',
+    'Member',
+    'MemberList',
+    'MemberUpdate',
+    'InviteCreate',
+    'Invite',
+    'InvitePreview',
+    'Notice',
+    'NoticeList',
+    'Collection',
+    'CollectionCreate',
+    'CollectionUpdate',
+    'CollectionList',
 ]
 
 
 # 정해진 태그 목록. 태깅(LLM·규칙)은 이 안에서만 고른다.
-Tag = Literal[
-    "음식",
-    "요리",
-    "건강",
-    "걱정",
-    "공부",
-    "일",
-    "살림",
-    "돈",
-    "칭찬",
-    "응원",
-    "위로",
-    "사랑",
-    "그리움",
-    "명절",
-    "생일",
-    "날씨",
-    "계절",
-    "여행",
-    "어린시절",
-    "젊은시절",
-    "결혼",
-    "조언",
-    "잔소리",
-    "웃음",
-    "안부",
-    "감사",
-    "노래",
-    "아들",
-    "딸",
-    "손주",
-    "배우자",
-    "부모님",
-    "형제자매",
-    "친구",
-    "이웃",
-    "집",
-    "고향",
-    "시장",
-    "병원",
-    "학교",
-    "직장",
-    "바다",
-    "산",
-    "밭",
-]
-TAG_VALUES: tuple[str, ...] = (
-    "음식",
-    "요리",
-    "건강",
-    "걱정",
-    "공부",
-    "일",
-    "살림",
-    "돈",
-    "칭찬",
-    "응원",
-    "위로",
-    "사랑",
-    "그리움",
-    "명절",
-    "생일",
-    "날씨",
-    "계절",
-    "여행",
-    "어린시절",
-    "젊은시절",
-    "결혼",
-    "조언",
-    "잔소리",
-    "웃음",
-    "안부",
-    "감사",
-    "노래",
-    "아들",
-    "딸",
-    "손주",
-    "배우자",
-    "부모님",
-    "형제자매",
-    "친구",
-    "이웃",
-    "집",
-    "고향",
-    "시장",
-    "병원",
-    "학교",
-    "직장",
-    "바다",
-    "산",
-    "밭",
-)
+Tag = Literal['음식', '요리', '건강', '걱정', '공부', '일', '살림', '돈', '칭찬', '응원', '위로', '사랑', '그리움', '명절', '생일', '날씨', '계절', '여행', '어린시절', '젊은시절', '결혼', '조언', '잔소리', '웃음', '안부', '감사', '노래', '아들', '딸', '손주', '배우자', '부모님', '형제자매', '친구', '이웃', '집', '고향', '시장', '병원', '학교', '직장', '바다', '산', '밭']
+TAG_VALUES: tuple[str, ...] = ('음식', '요리', '건강', '걱정', '공부', '일', '살림', '돈', '칭찬', '응원', '위로', '사랑', '그리움', '명절', '생일', '날씨', '계절', '여행', '어린시절', '젊은시절', '결혼', '조언', '잔소리', '웃음', '안부', '감사', '노래', '아들', '딸', '손주', '배우자', '부모님', '형제자매', '친구', '이웃', '집', '고향', '시장', '병원', '학교', '직장', '바다', '산', '밭',)
 
 
 # 대화 의도. 검색 때 관련 태그에 가산점을 준다.
-Intent = Literal[
-    "comfort",
-    "cheer",
-    "praise",
-    "advice",
-    "food",
-    "health",
-    "miss",
-    "greeting",
-    "story",
-    "celebrate",
-    "general",
-]
-INTENT_VALUES: tuple[str, ...] = (
-    "comfort",
-    "cheer",
-    "praise",
-    "advice",
-    "food",
-    "health",
-    "miss",
-    "greeting",
-    "story",
-    "celebrate",
-    "general",
-)
+Intent = Literal['comfort', 'cheer', 'praise', 'advice', 'food', 'health', 'miss', 'greeting', 'story', 'celebrate', 'general']
+INTENT_VALUES: tuple[str, ...] = ('comfort', 'cheer', 'praise', 'advice', 'food', 'health', 'miss', 'greeting', 'story', 'celebrate', 'general',)
 
 
 # 마음 돌봄 위험 수준. high면 클립보다 도움 안내를 먼저 보여 준다.
-CareLevel = Literal["none", "watch", "high"]
-CARE_LEVEL_VALUES: tuple[str, ...] = (
-    "none",
-    "watch",
-    "high",
-)
+CareLevel = Literal['none', 'watch', 'high']
+CARE_LEVEL_VALUES: tuple[str, ...] = ('none', 'watch', 'high',)
 
 
-AssetKind = Literal["audio", "video", "photo"]
-ASSET_KIND_VALUES: tuple[str, ...] = (
-    "audio",
-    "video",
-    "photo",
-)
+AssetKind = Literal['audio', 'video', 'photo']
+ASSET_KIND_VALUES: tuple[str, ...] = ('audio', 'video', 'photo',)
 
 
 # upload: 직접 올림, ahead: 미리 남기기 녹음, sample: 샘플
-AssetSource = Literal["upload", "ahead", "sample"]
-ASSET_SOURCE_VALUES: tuple[str, ...] = (
-    "upload",
-    "ahead",
-    "sample",
-)
+AssetSource = Literal['upload', 'ahead', 'sample']
+ASSET_SOURCE_VALUES: tuple[str, ...] = ('upload', 'ahead', 'sample',)
 
 
 # 자료 출처 종류(사용자가 고르거나 파일명으로 추정)
-OriginLabel = Literal["call", "video", "voice_message", "ahead", "other"]
-ORIGIN_LABEL_VALUES: tuple[str, ...] = (
-    "call",
-    "video",
-    "voice_message",
-    "ahead",
-    "other",
-)
+OriginLabel = Literal['call', 'video', 'voice_message', 'ahead', 'other']
+ORIGIN_LABEL_VALUES: tuple[str, ...] = ('call', 'video', 'voice_message', 'ahead', 'other',)
 
 
-AssetStatus = Literal["uploaded", "queued", "processing", "ready", "failed"]
-ASSET_STATUS_VALUES: tuple[str, ...] = (
-    "uploaded",
-    "queued",
-    "processing",
-    "ready",
-    "failed",
-)
+AssetStatus = Literal['uploaded', 'queued', 'processing', 'ready', 'failed']
+ASSET_STATUS_VALUES: tuple[str, ...] = ('uploaded', 'queued', 'processing', 'ready', 'failed',)
 
 
-StageName = Literal["normalize", "stt", "diarize", "segment", "tag", "index"]
-STAGE_NAME_VALUES: tuple[str, ...] = (
-    "normalize",
-    "stt",
-    "diarize",
-    "segment",
-    "tag",
-    "index",
-)
+StageName = Literal['normalize', 'stt', 'diarize', 'segment', 'tag', 'index']
+STAGE_NAME_VALUES: tuple[str, ...] = ('normalize', 'stt', 'diarize', 'segment', 'tag', 'index',)
 
 
-StageState = Literal["pending", "running", "done", "skipped", "failed"]
-STAGE_STATE_VALUES: tuple[str, ...] = (
-    "pending",
-    "running",
-    "done",
-    "skipped",
-    "failed",
-)
+StageState = Literal['pending', 'running', 'done', 'skipped', 'failed']
+STAGE_STATE_VALUES: tuple[str, ...] = ('pending', 'running', 'done', 'skipped', 'failed',)
 
 
 # 날짜를 어디서 알아냈는지
-DateSource = Literal["metadata", "filename", "exif", "user", "upload", "unknown"]
-DATE_SOURCE_VALUES: tuple[str, ...] = (
-    "metadata",
-    "filename",
-    "exif",
-    "user",
-    "upload",
-    "unknown",
-)
+DateSource = Literal['metadata', 'filename', 'exif', 'user', 'upload', 'unknown']
+DATE_SOURCE_VALUES: tuple[str, ...] = ('metadata', 'filename', 'exif', 'user', 'upload', 'unknown',)
 
 
-SpeakerRole = Literal["person", "other", "unknown"]
-SPEAKER_ROLE_VALUES: tuple[str, ...] = (
-    "person",
-    "other",
-    "unknown",
-)
+SpeakerRole = Literal['person', 'other', 'unknown']
+SPEAKER_ROLE_VALUES: tuple[str, ...] = ('person', 'other', 'unknown',)
 
 
-MemberRole = Literal["owner", "editor", "viewer"]
-MEMBER_ROLE_VALUES: tuple[str, ...] = (
-    "owner",
-    "editor",
-    "viewer",
-)
+MemberRole = Literal['owner', 'editor', 'viewer']
+MEMBER_ROLE_VALUES: tuple[str, ...] = ('owner', 'editor', 'viewer',)
 
 
 # ready: 재생 가능, placeholder: 샘플 녹음 준비 중, missing: 파일 없음
-AudioStatus = Literal["ready", "placeholder", "missing"]
-AUDIO_STATUS_VALUES: tuple[str, ...] = (
-    "ready",
-    "placeholder",
-    "missing",
-)
+AudioStatus = Literal['ready', 'placeholder', 'missing']
+AUDIO_STATUS_VALUES: tuple[str, ...] = ('ready', 'placeholder', 'missing',)
 
 
-ProviderFunction = Literal["stt", "diarization", "llm", "embedding"]
-PROVIDER_FUNCTION_VALUES: tuple[str, ...] = (
-    "stt",
-    "diarization",
-    "llm",
-    "embedding",
-)
+ProviderFunction = Literal['stt', 'diarization', 'llm', 'embedding']
+PROVIDER_FUNCTION_VALUES: tuple[str, ...] = ('stt', 'diarization', 'llm', 'embedding',)
 
 
-ProviderStatus = Literal["active", "not_configured", "blocked_by_policy", "needs_consent", "model_missing"]
-PROVIDER_STATUS_VALUES: tuple[str, ...] = (
-    "active",
-    "not_configured",
-    "blocked_by_policy",
-    "needs_consent",
-    "model_missing",
-)
+ProviderStatus = Literal['active', 'not_configured', 'blocked_by_policy', 'needs_consent', 'model_missing']
+PROVIDER_STATUS_VALUES: tuple[str, ...] = ('active', 'not_configured', 'blocked_by_policy', 'needs_consent', 'model_missing',)
 
 
-LinkStatus = Literal["active", "completed", "expired", "revoked"]
-LINK_STATUS_VALUES: tuple[str, ...] = (
-    "active",
-    "completed",
-    "expired",
-    "revoked",
-)
+LinkStatus = Literal['active', 'completed', 'expired', 'revoked']
+LINK_STATUS_VALUES: tuple[str, ...] = ('active', 'completed', 'expired', 'revoked',)
 
 
-QuestionCategory = Literal[
-    "childhood",
-    "youth",
-    "love_family",
-    "to_family",
-    "life_advice",
-    "food",
-    "holidays",
-    "everyday",
-    "health_heart",
-    "custom",
-]
-QUESTION_CATEGORY_VALUES: tuple[str, ...] = (
-    "childhood",
-    "youth",
-    "love_family",
-    "to_family",
-    "life_advice",
-    "food",
-    "holidays",
-    "everyday",
-    "health_heart",
-    "custom",
-)
+QuestionCategory = Literal['childhood', 'youth', 'love_family', 'to_family', 'life_advice', 'food', 'holidays', 'everyday', 'health_heart', 'custom']
+QUESTION_CATEGORY_VALUES: tuple[str, ...] = ('childhood', 'youth', 'love_family', 'to_family', 'life_advice', 'food', 'holidays', 'everyday', 'health_heart', 'custom',)
 
 
 class ErrorBody(BaseModel):
-    code: str = Field(description="기계가 읽는 오류 코드 (예: not_found, quota_exceeded)")
-    message_ko: str = Field(description="사용자에게 보여 줄 한국어 문구")
+    code: str = Field(description='기계가 읽는 오류 코드 (예: not_found, quota_exceeded)')
+    message_ko: str = Field(description='사용자에게 보여 줄 한국어 문구')
 
 
 class ErrorResponse(BaseModel):
@@ -413,27 +205,25 @@ class Health(BaseModel):
 
 class AppLimits(BaseModel):
     max_file_mb: int
-    space_quota_mb: int = Field(description="0이면 제한 없음")
-    user_upload_quota_mb: int = Field(description="0이면 제한 없음")
-    chat_daily_limit: int = Field(description="0이면 제한 없음")
+    space_quota_mb: int = Field(description='0이면 제한 없음')
+    user_upload_quota_mb: int = Field(description='0이면 제한 없음')
+    chat_daily_limit: int = Field(description='0이면 제한 없음')
     allowed_extensions: list[str]
 
 
 class AppConfig(BaseModel):
-    env: Literal["development", "staging", "production", "test"]
+    env: Literal['development', 'staging', 'production', 'test']
     signup_requires_invite: bool
     sample_space_id: Optional[str]
     limits: AppLimits
-    stt_available: bool = Field(description="음성으로 말 걸기(실제 음성 인식)가 가능한지")
+    stt_available: bool = Field(description='음성으로 말 걸기(실제 음성 인식)가 가능한지')
 
 
 class UserPrefs(BaseModel):
     large_text: bool
-    rest_reminder: bool = Field(description="오래 사용하면 쉬어 가기 안내")
+    rest_reminder: bool = Field(description='오래 사용하면 쉬어 가기 안내')
     rest_minutes: int = Field(ge=10, le=240)
-    consent_training_providers: bool = Field(
-        description="입력을 학습에 쓰는 무료 AI 등급 사용 동의 (staging에서만 의미 있음)"
-    )
+    consent_training_providers: bool = Field(description='입력을 학습에 쓰는 무료 AI 등급 사용 동의 (staging에서만 의미 있음)')
 
 
 class UserPrefsUpdate(BaseModel):
@@ -470,16 +260,16 @@ class DeleteAccountRequest(BaseModel):
 class SpaceCounts(BaseModel):
     assets: int
     clips: int
-    person_clips: int = Field(description="대화에 쓰이는(그 사람 목소리로 확인된) 클립 수")
+    person_clips: int = Field(description='대화에 쓰이는(그 사람 목소리로 확인된) 클립 수')
     photos: int
-    pending_voice: int = Field(description="목소리 확인이 필요한 자료 수")
+    pending_voice: int = Field(description='목소리 확인이 필요한 자료 수')
     processing: int
 
 
 class Space(BaseModel):
     id: str
-    name: str = Field(description="공간 이름 (예: 엄마)")
-    person_name: str = Field(description="그 사람의 이름 또는 부르는 말")
+    name: str = Field(description='공간 이름 (예: 엄마)')
+    person_name: str = Field(description='그 사람의 이름 또는 부르는 말')
     relationship: Optional[str] = Field(default=None)
     birthday: Optional[dt.date] = Field(default=None)
     memorial_day: Optional[dt.date] = Field(default=None)
@@ -488,7 +278,7 @@ class Space(BaseModel):
     role: MemberRole
     counts: SpaceCounts
     storage_bytes: int
-    storage_limit_bytes: int = Field(description="0이면 제한 없음")
+    storage_limit_bytes: int = Field(description='0이면 제한 없음')
     created_at: dt.datetime
 
 
@@ -511,15 +301,13 @@ class SpaceUpdate(BaseModel):
 
 
 class DeleteSpaceRequest(BaseModel):
-    confirm_name: str = Field(description="실수 방지를 위해 공간 이름을 그대로 입력")
+    confirm_name: str = Field(description='실수 방지를 위해 공간 이름을 그대로 입력')
 
 
 class AssetStage(BaseModel):
     name: StageName
     state: StageState
-    note: Optional[str] = Field(
-        default=None, description="예: '음성 인식 키가 없어 기본 방식으로 처리했어요'"
-    )
+    note: Optional[str] = Field(default=None, description="예: '음성 인식 키가 없어 기본 방식으로 처리했어요'")
 
 
 class Asset(BaseModel):
@@ -534,10 +322,10 @@ class Asset(BaseModel):
     date_source: DateSource
     status: AssetStatus
     stages: list[AssetStage]
-    progress: float = Field(description="0~1")
+    progress: float = Field(description='0~1')
     error: Optional[ErrorBody] = Field(default=None)
     clip_count: int
-    thumb_url: Optional[str] = Field(default=None, description="사진일 때 서명된 미리보기 URL")
+    thumb_url: Optional[str] = Field(default=None, description='사진일 때 서명된 미리보기 URL')
     created_at: dt.datetime
 
 
@@ -552,7 +340,7 @@ class AssetList(BaseModel):
 
 class PhotoRef(BaseModel):
     asset_id: str
-    url: str = Field(description="짧게 만료되는 서명 URL")
+    url: str = Field(description='짧게 만료되는 서명 URL')
     date: Optional[dt.date] = Field(default=None)
     caption: Optional[str] = Field(default=None)
 
@@ -563,19 +351,17 @@ class ClipCard(BaseModel):
     clip_id: str
     transcript: str
     date: Optional[dt.date] = Field(default=None)
-    date_label: Optional[str] = Field(default=None, description="예: 2019년 2월 4일 / 날짜 모름")
-    source_label: str = Field(description="예: 통화 녹음 · 2019년 2월")
+    date_label: Optional[str] = Field(default=None, description='예: 2019년 2월 4일 / 날짜 모름')
+    source_label: str = Field(description='예: 통화 녹음 · 2019년 2월')
     audio_url: Optional[str] = Field(default=None)
     audio_status: AudioStatus
     start_sec: float
     end_sec: float
     photos: list[PhotoRef]
-    question: Optional[str] = Field(default=None, description="미리 남기기 질문에 대한 답일 때 그 질문")
+    question: Optional[str] = Field(default=None, description='미리 남기기 질문에 대한 답일 때 그 질문')
     tags: list[Tag]
     favorite: bool
-    reason: Optional[str] = Field(
-        default=None, description="여운 안내: 이 클립을 고른 이유(그 사람의 말이 아님)"
-    )
+    reason: Optional[str] = Field(default=None, description='여운 안내: 이 클립을 고른 이유(그 사람의 말이 아님)')
 
 
 class Clip(BaseModel):
@@ -587,10 +373,8 @@ class Clip(BaseModel):
     text: str
     text_edited: bool
     tags: list[Tag]
-    included: bool = Field(description="대화에 쓰이는지(최종 판단)")
-    include_override: Optional[bool] = Field(
-        default=None, description="클립별 직접 포함/제외. null이면 화자 선택을 따름"
-    )
+    included: bool = Field(description='대화에 쓰이는지(최종 판단)')
+    include_override: Optional[bool] = Field(default=None, description='클립별 직접 포함/제외. null이면 화자 선택을 따름')
     audio_url: Optional[str] = Field(default=None)
     audio_status: AudioStatus
     confidence: Optional[float] = Field(default=None)
@@ -599,20 +383,18 @@ class Clip(BaseModel):
 class ClipUpdate(BaseModel):
     text: Optional[str] = Field(default=None, max_length=1000)
     include_override: Optional[bool] = Field(default=None)
-    clear_override: Optional[bool] = Field(
-        default=None, description="true면 클립별 설정을 지우고 화자 선택을 따른다"
-    )
+    clear_override: Optional[bool] = Field(default=None, description='true면 클립별 설정을 지우고 화자 선택을 따른다')
     tags: Optional[list[Tag]] = Field(default=None)
 
 
 class Speaker(BaseModel):
     id: str
     asset_id: str
-    label: str = Field(description="예: 목소리 1")
+    label: str = Field(description='예: 목소리 1')
     role: SpeakerRole
     clip_count: int
     total_sec: Optional[float] = Field(default=None)
-    samples: list[Clip] = Field(description="대표 구간")
+    samples: list[Clip] = Field(description='대표 구간')
 
 
 class SpeakerUpdate(BaseModel):
@@ -622,7 +404,7 @@ class SpeakerUpdate(BaseModel):
 class VoiceReviewAsset(BaseModel):
     asset: Asset
     speakers: list[Speaker]
-    diarized: bool = Field(description="false면 화자 분리 없이 파일 단위로 고른다")
+    diarized: bool = Field(description='false면 화자 분리 없이 파일 단위로 고른다')
     needs_review: bool
 
 
@@ -665,10 +447,10 @@ class ChatResponse(BaseModel):
     guide: GuideMessage
     clips: list[ClipCard] = Field(max_length=3)
     matched: bool = Field(description="false면 '딱 맞는 녹음은 없어요'")
-    nearby: list[ClipCard] = Field(description="맞는 녹음이 없을 때 보여 줄 가까운 추억")
+    nearby: list[ClipCard] = Field(description='맞는 녹음이 없을 때 보여 줄 가까운 추억')
     intent: Optional[Intent] = Field(default=None)
     keywords: list[str]
-    picker: str = Field(description="클립을 고른 방식 (mock, anthropic 등)")
+    picker: str = Field(description='클립을 고른 방식 (mock, anthropic 등)')
     remaining_today: Optional[int] = Field(default=None)
 
 
@@ -718,7 +500,7 @@ class LLMTagging(BaseModel):
 
 
 class TimelineItem(BaseModel):
-    kind: Literal["clip", "photo"]
+    kind: Literal['clip', 'photo']
     clip: Optional[ClipCard] = Field(default=None)
     photo: Optional[PhotoRef] = Field(default=None)
 
@@ -731,7 +513,7 @@ class TimelineDay(BaseModel):
 
 class Timeline(BaseModel):
     days: list[TimelineDay]
-    on_this_day: list[TimelineItem] = Field(description="1년 전(또는 그 전) 오늘")
+    on_this_day: list[TimelineItem] = Field(description='1년 전(또는 그 전) 오늘')
     tag_counts: dict[str, int]
     total: int
 
@@ -759,13 +541,9 @@ class QuestionDeck(BaseModel):
 
 class RecordingLinkCreate(BaseModel):
     question_ids: list[str] = Field(max_length=20)
-    custom_questions: list[Annotated[str, StringConstraints(min_length=2, max_length=120)]] = Field(
-        default_factory=list, max_length=5
-    )
-    sender_name: Optional[str] = Field(
-        default=None, max_length=40, description="녹음하는 분께 보일 보낸 사람 이름"
-    )
-    message: Optional[str] = Field(default=None, max_length=300, description="녹음하는 분께 보일 한마디")
+    custom_questions: list[Annotated[str, StringConstraints(min_length=2, max_length=120)]] = Field(default_factory=list, max_length=5)
+    sender_name: Optional[str] = Field(default=None, max_length=40, description='녹음하는 분께 보일 보낸 사람 이름')
+    message: Optional[str] = Field(default=None, max_length=300, description='녹음하는 분께 보일 한마디')
     expires_days: int = Field(default=7, ge=1, le=30)
 
 
@@ -778,9 +556,7 @@ class LinkQuestion(BaseModel):
 
 class RecordingLink(BaseModel):
     id: str
-    url: Optional[str] = Field(
-        default=None, description="만들 때 한 번만 내려 준다 (토큰은 서버에 해시로만 저장)"
-    )
+    url: Optional[str] = Field(default=None, description='만들 때 한 번만 내려 준다 (토큰은 서버에 해시로만 저장)')
     status: LinkStatus
     sender_name: Optional[str] = Field(default=None)
     questions: list[LinkQuestion]
@@ -809,8 +585,8 @@ class ProviderInfo(BaseModel):
     provider: str
     display_name: str
     is_external: bool
-    trains_on_input: bool = Field(description="입력 데이터를 학습에 쓰는 등급인지")
-    data_sent: str = Field(description="이 서비스로 보내는 데이터 (예: 오디오, 자막 텍스트)")
+    trains_on_input: bool = Field(description='입력 데이터를 학습에 쓰는 등급인지')
+    data_sent: str = Field(description='이 서비스로 보내는 데이터 (예: 오디오, 자막 텍스트)')
     retention_note: str
     status: ProviderStatus
     note: Optional[str] = Field(default=None)
@@ -818,7 +594,7 @@ class ProviderInfo(BaseModel):
 
 class ProviderList(BaseModel):
     providers: list[ProviderInfo]
-    retention: list[str] = Field(description="여운이 자료를 보관하는 기간 안내")
+    retention: list[str] = Field(description='여운이 자료를 보관하는 기간 안내')
 
 
 class Member(BaseModel):
@@ -858,7 +634,7 @@ class Notice(BaseModel):
     """앱 안 알림(기일·생일). 밤 늦게(22시~8시) 새로 띄우지 않는다."""
 
     id: str
-    kind: Literal["birthday", "memorial", "on_this_day"]
+    kind: Literal['birthday', 'memorial', 'on_this_day']
     space_id: str
     title: str
     message: str
