@@ -5,11 +5,11 @@ from __future__ import annotations
 import datetime as dt
 import secrets
 
-from fastapi import APIRouter, Depends, Response
+from fastapi import APIRouter, Depends, Request, Response
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.config import get_settings
+from app.config import web_base_url
 from app.db import get_db
 from app.errors import ApiError
 from app.models import Invite, Member, Space, User, utcnow
@@ -53,7 +53,10 @@ def list_members(access: SpaceAccess = Depends(space_reader), db: Session = Depe
 
 @router.post("/spaces/{space_id}/invites", response_model=InviteOut, status_code=201)
 def create_invite(
-    body: InviteCreate, access: SpaceAccess = Depends(space_owner), db: Session = Depends(get_db)
+    body: InviteCreate,
+    request: Request,
+    access: SpaceAccess = Depends(space_owner),
+    db: Session = Depends(get_db),
 ) -> InviteOut:
     if body.role == "owner":
         raise ApiError(400, "invalid_input", "초대는 편집 또는 보기 권한으로만 할 수 있어요.")
@@ -69,7 +72,7 @@ def create_invite(
     )
     db.add(inv)
     db.commit()
-    url = f"{get_settings().public_web_url.rstrip('/')}/invite/{token}"
+    url = f"{web_base_url(request.headers.get('origin'))}/invite/{token}"
     return InviteOut(id=inv.id, role=inv.role, url=url, expires_at=inv.expires_at)  # type: ignore[arg-type]
 
 

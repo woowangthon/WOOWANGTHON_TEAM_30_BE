@@ -42,8 +42,8 @@ class Settings(BaseSettings):
     worker_inline: bool = True
     worker_poll_sec: float = 1.0
 
-    # 링크(녹음·초대)에 쓰는 웹 주소
-    public_web_url: str = "http://localhost:3000"
+    # 링크(녹음·초대)에 쓰는 웹 주소. 비워 두면 요청의 Origin(웹 주소)을 쓴다.
+    public_web_url: str = ""
 
     # 친구 테스트(staging) 제한
     invite_codes: str = ""
@@ -142,6 +142,16 @@ VIDEO_EXTS = {"mp4", "mov", "m4v", "3gp2"}
 PHOTO_EXTS = {"jpg", "jpeg", "png", "heic", "heif"}
 # 사용자에게 안내하는 확장자 목록 (webm·opus·3gp는 녹음기/일부 기종용으로 함께 받는다)
 ALLOWED_EXTS = sorted(AUDIO_EXTS | VIDEO_EXTS | PHOTO_EXTS)
+
+
+def web_base_url(origin_header: str | None) -> str:
+    """녹음·초대 링크의 앞부분. 설정값 → 브라우저 Origin → 개발 기본값 순서."""
+    s = get_settings()
+    if s.public_web_url.strip():
+        return s.public_web_url.strip().rstrip("/")
+    if origin_header and origin_header.startswith(("https://", "http://localhost", "http://127.0.0.1")):
+        return origin_header.rstrip("/")
+    return "http://localhost:3000"
 
 
 @lru_cache

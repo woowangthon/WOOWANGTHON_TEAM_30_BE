@@ -42,7 +42,9 @@ def test_seed_creates_public_sample(app, db):
     assert tl["total"] == 52
     assert len(tl["on_this_day"]) >= 1  # '@one_year_ago' 클립
     # 샘플은 읽기 전용
-    assert anon.post(f"/api/spaces/{sid}/assets", files={"file": ("a.mp3", b"x")}, data={"consent": "true"}).status_code in (
+    assert anon.post(
+        f"/api/spaces/{sid}/assets", files={"file": ("a.mp3", b"x")}, data={"consent": "true"}
+    ).status_code in (
         401,
         403,
     )

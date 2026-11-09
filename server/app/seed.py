@@ -41,7 +41,12 @@ SAMPLE_JSON = DEMO_DIR / "sample-space.json"
 SYSTEM_EMAIL = "sample@yeoun.invalid"
 AUDIO_EXTS = (".m4a", ".mp3", ".wav", ".aac", ".ogg", ".webm")
 KST = dt.timezone(dt.timedelta(hours=9))
-ORIGIN_NAMES = {"call": "통화 녹음", "video": "동영상", "voice_message": "음성 메시지", "ahead": "미리 남기기"}
+ORIGIN_NAMES = {
+    "call": "통화 녹음",
+    "video": "동영상",
+    "voice_message": "음성 메시지",
+    "ahead": "미리 남기기",
+}
 
 
 def _audio_for(ref: str) -> Path | None:
@@ -96,7 +101,9 @@ def placeholder_photo(palette: list[str], seed: str) -> bytes:
     draw.ellipse([cx - r, cy - r, cx + r, cy + r], fill=(255, 250, 240))
     for i in range(3):
         x0 = (rnd >> (i * 5)) % w
-        draw.ellipse([x0 - 260, h - 180 - i * 40, x0 + 260, h + 200], fill=tuple(max(0, c - 25 - i * 10) for c in b))
+        draw.ellipse(
+            [x0 - 260, h - 180 - i * 40, x0 + 260, h + 200], fill=tuple(max(0, c - 25 - i * 10) for c in b)
+        )
     buf = io.BytesIO()
     img.save(buf, format="JPEG", quality=80)
     return buf.getvalue()
@@ -158,7 +165,11 @@ def seed_sample(force: bool = False) -> str:
         with tempfile.TemporaryDirectory(prefix="yeoun-seed-") as tmp:
             for item in data["clips"]:
                 ref = item["ref"]
-                date = one_year_ago_date(memorial, today) if item["date"] == "@one_year_ago" else dt.date.fromisoformat(item["date"])
+                date = (
+                    one_year_ago_date(memorial, today)
+                    if item["date"] == "@one_year_ago"
+                    else dt.date.fromisoformat(item["date"])
+                )
                 origin = item.get("source", "call")
                 qid = item.get("question_id")
                 asset = Asset(
@@ -173,7 +184,10 @@ def seed_sample(force: bool = False) -> str:
                     recorded_at=date,
                     date_source="metadata",
                     status="ready",
-                    stages=[{"name": n, "state": "done", "note": None} for n in ("normalize", "stt", "diarize", "segment", "tag", "index")],
+                    stages=[
+                        {"name": n, "state": "done", "note": None}
+                        for n in ("normalize", "stt", "diarize", "segment", "tag", "index")
+                    ],
                     progress=1.0,
                     diarized=True,
                     voice_reviewed=True,
@@ -183,7 +197,9 @@ def seed_sample(force: bool = False) -> str:
                 )
                 db.add(asset)
                 db.flush()
-                speaker = Speaker(asset_id=asset.id, space_id=space.id, label=info["person_name"], role="person")
+                speaker = Speaker(
+                    asset_id=asset.id, space_id=space.id, label=info["person_name"], role="person"
+                )
                 db.add(speaker)
                 db.flush()
                 text = item["text"]
@@ -253,8 +269,15 @@ def seed_sample(force: bool = False) -> str:
         prefs = dict(user.prefs or {})
         prefs["sample_fingerprint"] = fp
         user.prefs = prefs
-        log.info("sample seeded clips=%d with_audio=%d photos=%d", len(data["clips"]), with_audio, len(data.get("photos", [])))
-        print(f"샘플 공간을 만들었어요: 클립 {len(data['clips'])}개 (녹음 {with_audio}개), 사진 {len(data.get('photos', []))}장")
+        log.info(
+            "sample seeded clips=%d with_audio=%d photos=%d",
+            len(data["clips"]),
+            with_audio,
+            len(data.get("photos", [])),
+        )
+        print(
+            f"샘플 공간을 만들었어요: 클립 {len(data['clips'])}개 (녹음 {with_audio}개), 사진 {len(data.get('photos', []))}장"
+        )
         return space.id
 
 

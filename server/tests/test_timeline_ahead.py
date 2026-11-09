@@ -39,7 +39,7 @@ def test_recording_link_full_flow(app, db, tmp_path):
     )
     assert r.status_code == 201, r.text
     link = r.json()
-    assert link["url"].startswith("http://localhost:3000/r/")
+    assert link["url"].startswith("http://localhost:3000/r/")  # Origin이 없으면 개발 기본값
     assert len(link["questions"]) == 3
     token = link["url"].rsplit("/", 1)[-1]
     # 토큰 원문은 DB에 없다
@@ -161,3 +161,15 @@ def test_timeline_privacy(app):
     b = ApiClient(app)
     signup(b, "b@example.com")
     assert b.get(f"/api/spaces/{space['id']}/timeline").status_code == 404
+
+
+def test_link_url_uses_browser_origin_when_not_configured(client):
+    signup(client)
+    sid = create_space(client)["id"]
+    r = client.post(
+        f"/api/spaces/{sid}/links", json={"question_ids": ["q001"]}, headers={"origin": "https://yeoun-web.onrender.com"}
+    )
+    assert r.json()["url"].startswith("https://yeoun-web.onrender.com/r/")
+    # 이상한 Origin(http 외부 주소)은 믿지 않는다
+    r = client.post(f"/api/spaces/{sid}/links", json={"question_ids": ["q001"]}, headers={"origin": "http://evil.example"})
+    assert r.json()["url"].startswith("http://localhost:3000/r/")

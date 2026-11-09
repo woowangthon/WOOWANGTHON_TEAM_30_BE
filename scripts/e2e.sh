@@ -10,7 +10,7 @@ WEB_PORT=${E2E_WEB_PORT:-3100}
 DB_NAME=${E2E_DB_NAME:-yeoun_e2e}
 PG_ADMIN_URL=${E2E_PG_ADMIN_URL:-postgresql://yeoun:yeoun@localhost:5432/postgres}
 DATA_DIR="$(mktemp -d -t yeoun-e2e-XXXX)"
-LOG_DIR="$ROOT/web/test-results"
+LOG_DIR="$ROOT/web/.e2e-logs"  # test-results는 Playwright가 지우므로 따로 둔다
 mkdir -p "$LOG_DIR"
 
 psql "$PG_ADMIN_URL" -q -c "DROP DATABASE IF EXISTS $DB_NAME" -c "CREATE DATABASE $DB_NAME" >/dev/null

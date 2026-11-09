@@ -18,7 +18,7 @@ from fastapi import APIRouter, Depends, File, Form, Request, Response, UploadFil
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.config import SHARED_DIR, get_settings
+from app.config import SHARED_DIR, get_settings, web_base_url
 from app.db import get_db
 from app.errors import ApiError
 from app.models import Asset, RecordingLink, Space, User, utcnow
@@ -115,7 +115,10 @@ def list_links(
 
 @router.post("/spaces/{space_id}/links", response_model=LinkOut, status_code=201)
 def create_link(
-    body: RecordingLinkCreate, access: SpaceAccess = Depends(space_editor), db: Session = Depends(get_db)
+    body: RecordingLinkCreate,
+    request: Request,
+    access: SpaceAccess = Depends(space_editor),
+    db: Session = Depends(get_db),
 ) -> LinkOut:
     cards = {c.id: c for c in deck().cards}
     picked: list[dict] = []
@@ -146,7 +149,7 @@ def create_link(
     )
     db.add(link)
     db.commit()
-    url = f"{get_settings().public_web_url.rstrip('/')}/r/{token}"
+    url = f"{web_base_url(request.headers.get('origin'))}/r/{token}"
     return link_out(db, link, url=url)
 
 

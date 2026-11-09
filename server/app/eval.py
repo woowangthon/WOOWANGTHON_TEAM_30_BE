@@ -114,7 +114,9 @@ def run(tokenizer: str, use_llm: bool = False, verbose: bool = False) -> Report:
 def print_report(r: Report, verbose: bool) -> None:
     print(f"\n[토크나이저 {r.tokenizer} · 고르기 {r.picker}]")
     print(f"  top-3 정확도(최종 답)   : {r.hits}/{r.total} = {r.top3:.1%}")
-    print(f"  검색 top-3(LLM 고르기 전): {r.retrieval_hits}/{r.total} = {r.retrieval_hits / max(1, r.total):.1%}")
+    print(
+        f"  검색 top-3(LLM 고르기 전): {r.retrieval_hits}/{r.total} = {r.retrieval_hits / max(1, r.total):.1%}"
+    )
     print(f"  MRR@20                 : {r.rr_sum / max(1, r.total):.3f}")
     print(f"  '맞는 녹음 없음' 정답    : {r.no_match_ok}/{r.no_match_total}")
     if r.failures and verbose:
