@@ -1,6 +1,5 @@
 .git
 **/node_modules
-web
 **/.venv
 **/__pycache__
 **/.pytest_cache

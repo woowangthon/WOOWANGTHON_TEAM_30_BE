@@ -13,7 +13,7 @@
   - 방법: 추측하기 어려운 코드를 2~3개 만들어 `YEOUN_INVITE_CODES`에 쉼표로 넣기 (예: `yeoun-friends-7k2m,yeoun-family-q9x4`).
   - 코드를 바꾸면 Render가 API를 다시 시작해요. 이미 가입한 사람은 영향 없어요.
 - [ ] **마스터 키 백업** — `YEOUN_MASTER_KEY`를 잃거나 바꾸면 **저장된 모든 파일을 다시 열 수 없어요.**
-  - 방법: Render 대시보드 → yeoun-api → Environment → `YEOUN_MASTER_KEY` 값을 복사해 팀 비밀번호 관리자(1Password 등)에 보관. 채팅·문서·커밋에 붙여 넣지 않기.
+  - 방법: Render 대시보드 → yeoun-team30-api → Environment → `YEOUN_MASTER_KEY` 값을 복사해 팀 비밀번호 관리자(1Password 등)에 보관. 채팅·문서·커밋에 붙여 넣지 않기.
 - [ ] **Neon DB 계산 시간 확인** — DB는 Neon 무료(만료 없음, 1GB)를 써요. 무료 계산 시간이 프로젝트당 한 달 100 CU-시간이라, 24시간 깨워 두면 모자라요.
   - 방법: UptimeRobot 등으로 yeoun을 계속 깨우지 않기(꼭 필요하면 심사 기간 며칠만). Neon 대시보드 → Usage에서 가끔 확인.
 

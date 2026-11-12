@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """shared/schema.json → Pydantic 모델(server)과 TypeScript 타입(web)을 만든다.
 
+TS 타입은 FE 저장소에 쓴다. 기본 위치는 같은 상위 폴더에 나란히 clone한 WOOWANGTHON_TEAM_30_FE이고,
+환경 변수 WEB_DIR로 바꿀 수 있다. FE 저장소가 없으면 TS 타입은 건너뛴다.
+
 사용법:
     python3 shared/codegen.py          # 파일 생성
     python3 shared/codegen.py --check  # 생성 결과가 커밋된 파일과 같은지 확인 (make lint)
@@ -12,13 +15,17 @@ string/number/integer/boolean, enum, $ref, nullable, format date/date-time, 길�
 from __future__ import annotations
 
 import json
+import os
 import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 SCHEMA_PATH = ROOT / "shared" / "schema.json"
 PY_OUT = ROOT / "server" / "app" / "schemas" / "generated.py"
-TS_OUT = ROOT / "web" / "src" / "lib" / "api-types.gen.ts"
+WEB_DIR = Path(os.environ.get("WEB_DIR") or ROOT.parent / "WOOWANGTHON_TEAM_30_FE")
+if not WEB_DIR.is_absolute():
+    WEB_DIR = (ROOT / WEB_DIR).resolve()
+TS_OUT = WEB_DIR / "src" / "lib" / "api-types.gen.ts"
 
 HEADER_NOTE = "자동 생성 파일입니다. 직접 고치지 말고 shared/schema.json을 고친 뒤 `make gen`을 실행하세요."
 
@@ -263,7 +270,11 @@ def gen_ts(defs: dict) -> str:
 def main() -> int:
     schema = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
     defs = schema["$defs"]
-    outputs = {PY_OUT: gen_python(defs), TS_OUT: gen_ts(defs)}
+    outputs = {PY_OUT: gen_python(defs)}
+    if WEB_DIR.is_dir():
+        outputs[TS_OUT] = gen_ts(defs)
+    else:
+        print(f"FE 저장소가 없어 TS 타입은 건너뜀: {WEB_DIR}", file=sys.stderr)
     check = "--check" in sys.argv
     stale = []
     for path, content in outputs.items():
@@ -273,10 +284,10 @@ def main() -> int:
         else:
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(content, encoding="utf-8")
-            print(f"생성: {path.relative_to(ROOT)}")
+            print(f"생성: {path}")
     if stale:
         for p in stale:
-            print(f"오래된 생성 파일: {p.relative_to(ROOT)} — `make gen`을 실행하세요", file=sys.stderr)
+            print(f"오래된 생성 파일: {p} — `make gen`을 실행하세요", file=sys.stderr)
         return 1
     return 0
 
