@@ -2,6 +2,7 @@
 
 - none: 화자를 나누지 않는다. 사용자가 '목소리 확인'에서 파일·클립 단위로 직접 고른다.
 - mock: STT fixture에 화자 표시가 있으면 그것을 쓴다 (테스트·데모).
+- nova: NOVA 받아쓰기(Soniox)가 붙인 화자를 그대로 쓴다 (추가 호출·과금 없음).
 - openai: gpt-4o-transcribe-diarize의 화자 구간을 STT 구간에 시간 겹침으로 붙인다.
 """
 
@@ -98,7 +99,24 @@ class OpenAIDiarizer:
         return assign_speakers(segments, turns), True
 
 
+class NovaDiarizer:
+    """NOVA 받아쓰기(Soniox)가 이미 붙인 화자를 그대로 쓴다. 다른 STT 결과라 화자가 없으면 나누지 않는다."""
+
+    name = "nova"
+
+    def diarize(
+        self, wav: Path, segments: list[TranscriptSegment], duration: float
+    ) -> tuple[list[TranscriptSegment], bool]:
+        if segments and any(s.speaker for s in segments):
+            return segments, True
+        return [s.model_copy(update={"speaker": None}) for s in segments], False
+
+
 def build(name: str):
+    if name == "nova":
+        if not api_key("nova"):
+            raise ProviderError("not_configured")
+        return NovaDiarizer()
     if name == "openai":
         key = api_key("openai")
         if not key:

@@ -1,4 +1,4 @@
-"""임베딩 어댑터 (openai, gemini, none). none이면 BM25만 쓴다."""
+"""임베딩 어댑터 (nova, openai, gemini, none). none이면 BM25만 쓴다."""
 
 from __future__ import annotations
 
@@ -32,6 +32,7 @@ class NoEmbedder:
 class OpenAIEmbedder:
     name = "openai"
     live = True
+    url = "https://api.openai.com/v1/embeddings"
 
     def __init__(self, key: str):
         self.key = key
@@ -43,7 +44,7 @@ class OpenAIEmbedder:
             batch = [t or " " for t in texts[i : i + 64]]
             try:
                 r = httpx.post(
-                    "https://api.openai.com/v1/embeddings",
+                    self.url,
                     headers={"Authorization": f"Bearer {self.key}"},
                     json={"model": self.model, "input": batch},
                     timeout=get_settings().llm_timeout_sec,
@@ -52,9 +53,24 @@ class OpenAIEmbedder:
                 raise ProviderError("http_error", type(e).__name__) from e
             if r.status_code != 200:
                 raise ProviderError("http_error", f"status={r.status_code}")
-            data = sorted(r.json()["data"], key=lambda d: d["index"])
-            out += [d["embedding"] for d in data]
+            try:
+                data = sorted(r.json()["data"], key=lambda d: d["index"])
+                out += [d["embedding"] for d in data]
+            except (KeyError, TypeError, ValueError) as e:
+                raise ProviderError("bad_output") from e
         return out
+
+
+class NovaEmbedder(OpenAIEmbedder):
+    """충북대 NOVA API Gateway의 OpenAI 호환 /embeddings/."""
+
+    name = "nova"
+
+    def __init__(self, key: str):
+        s = get_settings()
+        self.key = key
+        self.model = s.nova_embedding_model
+        self.url = s.nova_base_url.rstrip("/") + "/embeddings/"
 
 
 class GeminiEmbedder:
@@ -91,6 +107,11 @@ class GeminiEmbedder:
 
 
 def build(name: str):
+    if name == "nova":
+        key = api_key("nova")
+        if not key:
+            raise ProviderError("not_configured")
+        return NovaEmbedder(key)
     if name == "openai":
         key = api_key("openai")
         if not key:

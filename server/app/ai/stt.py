@@ -7,7 +7,9 @@ import json
 import logging
 import math
 import tempfile
+import time
 from pathlib import Path
+from urllib.parse import quote
 
 import httpx
 
@@ -211,7 +213,128 @@ class GeminiSTT:
             ).strip()
 
 
+NOVA_CHUNK_SEC = 3600.0  # mp3 48kbps 1시간 ≈ 21.6MB (게이트웨이 본문 상한 25MB, 오디오 상한 120분)
+
+
+class NovaSTT:
+    """충북대 NOVA API Gateway 받아쓰기 (Soniox stt-async).
+
+    작업 시작(POST, multipart) → operation_id → 상태 폴링(GET) 두 단계다. 화자 분리 결과가 함께 오므로
+    구간마다 speaker를 붙여 돌려주고, 화자 분리 단계(NovaDiarizer)는 그 값을 그대로 쓴다.
+    1시간이 넘는 파일만 나눠 보낸다(나눈 조각끼리는 화자 번호가 이어지지 않을 수 있다).
+    """
+
+    name = "nova"
+    live = True
+
+    def __init__(self, key: str):
+        s = get_settings()
+        self.key = key
+        self.model = s.nova_stt_model
+        self.url = s.nova_base_url.rstrip("/") + "/audio/transcriptions/"
+        self.poll_sec = max(1.0, s.nova_stt_poll_sec)
+
+    def _headers(self) -> dict[str, str]:
+        return {"Authorization": f"Bearer {self.key}"}
+
+    def _start(self, path: Path, *, diarize: bool) -> str:
+        s = get_settings()
+        with path.open("rb") as f:
+            try:
+                r = httpx.post(
+                    self.url,
+                    headers=self._headers(),
+                    data={
+                        "model": self.model,
+                        "language_hints": "ko",
+                        "enable_speaker_diarization": "true" if diarize else "false",
+                    },
+                    files={"file": (path.name, f, "audio/mpeg")},
+                    timeout=s.stt_timeout_sec,
+                )
+            except httpx.TimeoutException as e:
+                raise ProviderError("timeout") from e
+            except httpx.HTTPError as e:
+                raise ProviderError("http_error", type(e).__name__) from e
+        if r.status_code not in (200, 201, 202):
+            raise ProviderError("http_error", f"status={r.status_code}")
+        try:
+            op = str(r.json()["operation_id"])
+        except (KeyError, TypeError, ValueError) as e:
+            raise ProviderError("bad_output", "no operation_id") from e
+        log.info("nova_stt_started credits=%s", r.headers.get("X-Credits-Charged"))
+        return op
+
+    def _wait(self, op: str) -> dict:
+        s = get_settings()
+        url = f"{self.url}{quote(op, safe='')}/"
+        deadline = time.monotonic() + s.stt_timeout_sec
+        while True:
+            time.sleep(self.poll_sec)
+            try:
+                r = httpx.get(url, headers=self._headers(), timeout=30.0)
+            except httpx.HTTPError:
+                r = None
+            if r is not None and r.status_code == 200:
+                try:
+                    data = r.json()
+                except ValueError as e:
+                    raise ProviderError("bad_output") from e
+                status = data.get("status")
+                if status == "completed":
+                    return data
+                if status == "failed":
+                    raise ProviderError("http_error", "transcription_failed")
+            elif r is not None and r.status_code not in (429, 500, 502, 503, 504):
+                raise ProviderError("http_error", f"status={r.status_code}")
+            if time.monotonic() > deadline:
+                raise ProviderError("timeout")
+
+    @staticmethod
+    def _speaker(label: object) -> str | None:
+        text = str(label or "").strip()
+        if not text or text.lower() == "speaker unknown":
+            return None
+        return text.replace("Speaker ", "S")
+
+    def transcribe(self, wav: Path, *, sha256: str | None, duration: float) -> list[TranscriptSegment]:
+        segments: list[TranscriptSegment] = []
+        n = max(1, math.ceil(duration / NOVA_CHUNK_SEC))
+        with tempfile.TemporaryDirectory(prefix="yeoun-stt-") as tmp:
+            for i in range(n):
+                offset = i * NOVA_CHUNK_SEC
+                part = Path(tmp) / f"part{i}.mp3"
+                media.encode_for_upload(
+                    wav, part, start=offset if n > 1 else None, duration=NOVA_CHUNK_SEC if n > 1 else None
+                )
+                data = self._wait(self._start(part, diarize=True))
+                for seg in data.get("segments") or []:
+                    text = (seg.get("text") or "").strip()
+                    try:
+                        start = offset + float(seg["start_ms"]) / 1000
+                        end = offset + float(seg["end_ms"]) / 1000
+                    except (KeyError, TypeError, ValueError):
+                        continue
+                    if not text or end <= start:
+                        continue
+                    segments.append(
+                        TranscriptSegment(start=start, end=end, text=text, speaker=self._speaker(seg.get("speaker")))
+                    )
+        return segments
+
+    def transcribe_short(self, path: Path) -> str:
+        with tempfile.TemporaryDirectory(prefix="yeoun-stt-") as tmp:
+            part = Path(tmp) / "voice.mp3"
+            media.encode_for_upload(path, part)
+            return (self._wait(self._start(part, diarize=False)).get("text") or "").strip()
+
+
 def build(name: str):
+    if name == "nova":
+        key = api_key("nova")
+        if not key:
+            raise ProviderError("not_configured")
+        return NovaSTT(key)
     if name == "openai":
         key = api_key("openai")
         if not key:
