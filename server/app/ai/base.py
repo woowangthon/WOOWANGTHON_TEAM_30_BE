@@ -43,6 +43,10 @@ RETENTION = {
     "anthropic": "Anthropic API: 입력을 모델 학습에 쓰지 않음(기본 설정). 공급자 정책에 따라 일정 기간 보관 후 삭제.",
     "gemini_free": "Gemini API 무료 등급: 입력이 구글 제품 개선(학습)과 사람 검토에 쓰일 수 있음.",
     "gemini_paid": "Gemini API 유료 등급: 입력을 제품 개선(학습)에 쓰지 않음. 오남용 감시를 위해 일정 기간 보관.",
+    "nova": (
+        "충북대 NOVA API Gateway(운영: 마인드로직)를 거쳐 모델 제공사(Anthropic·OpenAI·Soniox)로 전달. "
+        "보관·학습 정책은 마인드로직과 각 제공사의 API 정책을 따름."
+    ),
     "local": "외부로 보내지 않음 (여운 서버 안에서 처리).",
 }
 
@@ -56,6 +60,16 @@ def meta_for(function: str, name: str) -> ProviderMeta:
             "replay": "녹화된 응답 재생 (테스트용)",
         }
         return ProviderMeta(function, name, labels[name], False, False, "없음", RETENTION["local"])
+    if name == "nova":
+        model = {
+            "stt": f"Soniox {s.nova_stt_model}",
+            "diarization": f"Soniox {s.nova_stt_model}",
+            "llm": s.nova_llm_model,
+            "embedding": s.nova_embedding_model,
+        }[function]
+        return ProviderMeta(
+            function, name, f"충북대 NOVA Gateway ({model})", True, False, DATA_SENT[function], RETENTION["nova"]
+        )
     if name == "openai":
         model = {
             "stt": s.openai_stt_model,
@@ -93,9 +107,12 @@ def meta_for(function: str, name: str) -> ProviderMeta:
 
 def api_key(name: str) -> str | None:
     s = get_settings()
-    secret = {"openai": s.openai_api_key, "anthropic": s.anthropic_api_key, "gemini": s.gemini_api_key}.get(
-        name
-    )
+    secret = {
+        "nova": s.nova_api_key,
+        "openai": s.openai_api_key,
+        "anthropic": s.anthropic_api_key,
+        "gemini": s.gemini_api_key,
+    }.get(name)
     if secret is None:
         return None
     value = secret.get_secret_value().strip()

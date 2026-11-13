@@ -60,10 +60,19 @@ class Settings(BaseSettings):
     match_threshold: float = 0.34
 
     # AI 공급자 (auto = 키가 있으면 실제 공급자, 없으면 mock/none)
-    stt_provider: Literal["auto", "mock", "openai", "gemini"] = "auto"
-    diarization_provider: Literal["auto", "none", "mock", "openai"] = "auto"
-    llm_provider: Literal["auto", "mock", "anthropic", "openai", "gemini", "replay"] = "auto"
-    embedding_provider: Literal["auto", "none", "openai", "gemini"] = "auto"
+    stt_provider: Literal["auto", "mock", "nova", "openai", "gemini"] = "auto"
+    diarization_provider: Literal["auto", "none", "mock", "nova", "openai"] = "auto"
+    llm_provider: Literal["auto", "mock", "nova", "anthropic", "openai", "gemini", "replay"] = "auto"
+    embedding_provider: Literal["auto", "none", "nova", "openai", "gemini"] = "auto"
+
+    # 충북대 NOVA(마인드로직 베이즈) API Gateway: 키 하나로 Claude·임베딩·받아쓰기(Soniox)를 쓴다.
+    # 크레딧이 떨어지면 다른 팀원 키로 YEOUN_NOVA_API_KEY만 바꾸면 된다.
+    nova_api_key: SecretStr | None = None
+    nova_base_url: str = "https://factchat-cloud.mindlogic.ai/v1/gateway"
+    nova_llm_model: str = "claude-haiku-5-5"
+    nova_embedding_model: str = "text-embedding-3-small"
+    nova_stt_model: str = "stt-async-v5"
+    nova_stt_poll_sec: float = 5.0
 
     anthropic_api_key: SecretStr | None = None
     openai_api_key: SecretStr | None = None

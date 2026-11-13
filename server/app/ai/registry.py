@@ -22,10 +22,10 @@ log = logging.getLogger("yeoun.registry")
 
 FUNCTIONS = ("stt", "diarization", "llm", "embedding")
 AUTO_ORDER = {
-    "stt": ["openai", "gemini"],
-    "diarization": ["openai"],
-    "llm": ["anthropic", "openai", "gemini"],
-    "embedding": ["openai", "gemini"],
+    "stt": ["nova", "openai", "gemini"],
+    "diarization": ["nova", "openai"],
+    "llm": ["nova", "anthropic", "openai", "gemini"],
+    "embedding": ["nova", "openai", "gemini"],
 }
 FALLBACK = {"stt": "mock", "diarization": "none", "llm": "mock", "embedding": "none"}
 LOCAL = {"mock", "none", "replay"}

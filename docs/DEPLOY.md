@@ -129,6 +129,8 @@ FE 주소를 열고 차례로 해 보세요.
 | `YEOUN_SAMPLE_CHAT_PER_MINUTE` | `60` | 로그인 없는 샘플 체험의 분당 횟수(접속 주소별) |
 | `YEOUN_PUBLIC_WEB_URL` | (비움) | 녹음·초대 링크 주소. 비우면 브라우저 주소 |
 | `YEOUN_ANTHROPIC_API_KEY` | (선택) | 클립 고르기·태깅·의도 파악 (기본 모델 `claude-haiku-5-5`, `YEOUN_ANTHROPIC_MODEL`로 변경) |
+| `YEOUN_NOVA_API_KEY` | (권장) | **충북대 NOVA API Gateway** 키 하나로 받아쓰기(Soniox `stt-async-v5`, 화자 분리 포함)·LLM(`claude-haiku-5-5`)·임베딩(`text-embedding-3-small`). 키가 있으면 다른 공급자보다 먼저 씀. 크레딧이 떨어지면 다른 팀원 키로 바꾸기 |
+| `YEOUN_NOVA_LLM_MODEL` 등 | 위 기본값 | `YEOUN_NOVA_BASE_URL`, `YEOUN_NOVA_LLM_MODEL`, `YEOUN_NOVA_EMBEDDING_MODEL`, `YEOUN_NOVA_STT_MODEL`, `YEOUN_NOVA_STT_POLL_SEC`로 바꿀 수 있음 |
 | `YEOUN_OPENAI_API_KEY` | (선택) | 받아쓰기 `whisper-1`, 화자 분리 `gpt-4o-transcribe-diarize`, 임베딩 `text-embedding-3-small` |
 | `YEOUN_GEMINI_API_KEY` | (선택) | Gemini. 무료 등급(`YEOUN_GEMINI_TIER=free`)은 동의한 사용자에게만 |
 | `YEOUN_STT_PROVIDER` 등 | `auto` | `auto`면 키가 있는 공급자를 씀. `mock`으로 강제할 수도 있음 |

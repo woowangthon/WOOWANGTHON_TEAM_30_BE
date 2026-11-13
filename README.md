@@ -81,12 +81,14 @@ createdb -O yeoun yeoun && createdb -O yeoun yeoun_test
 
 | 기능 | 공급자 | 키 없을 때 |
 |---|---|---|
-| 받아쓰기(STT) | openai(whisper-1), gemini | mock: 테스트 fixture 자막, 그 외엔 무음 구간만 나누고 자막은 비움(지어내지 않음) |
-| 목소리 나누기 | openai(gpt-4o-transcribe-diarize) | none: 사용자가 '목소리 확인'에서 파일·클립 단위로 고름 |
-| LLM(의도·고르기·태깅) | anthropic(기본 `claude-haiku-5-5`), openai, gemini, replay | mock: 사투리 정규화 + 개념 사전 + BM25 + 규칙 태깅 |
-| 임베딩 | openai, gemini | none: BM25만 |
+| 받아쓰기(STT) | **nova(Soniox `stt-async-v5`, 화자 분리 포함)**, openai(whisper-1), gemini | mock: 테스트 fixture 자막, 그 외엔 무음 구간만 나누고 자막은 비움(지어내지 않음) |
+| 목소리 나누기 | **nova(받아쓰기 결과의 화자를 그대로 씀)**, openai(gpt-4o-transcribe-diarize) | none: 사용자가 '목소리 확인'에서 파일·클립 단위로 고름 |
+| LLM(의도·고르기·태깅) | **nova(`claude-haiku-5-5`)**, anthropic(기본 `claude-haiku-5-5`), openai, gemini, replay | mock: 사투리 정규화 + 개념 사전 + BM25 + 규칙 태깅 |
+| 임베딩 | **nova(`text-embedding-3-small`)**, openai, gemini | none: BM25만 |
 
-키는 `YEOUN_` 접두사 환경 변수로만 읽습니다(`YEOUN_ANTHROPIC_API_KEY`, `YEOUN_OPENAI_API_KEY`, `YEOUN_GEMINI_API_KEY`). 입력을 학습에 쓰는 무료 등급(예: Gemini 무료)은 production에서 실제 사용자 자료에 쓰지 않고, staging에서는 사용자가 동의한 경우에만 씁니다. 각 공간의 설정 → 외부 서비스에서 자료가 어디로 가는지 볼 수 있습니다.
+`auto`는 표의 왼쪽부터 키가 있는 공급자를 씁니다. 지금 배포는 **충북대 NOVA API Gateway** 키 하나(`YEOUN_NOVA_API_KEY`)로 받아쓰기·화자 분리·LLM·임베딩을 모두 처리합니다. NOVA는 팀원마다 매달 무료 크레딧(5,000)이 있어서, 크레딧이 떨어지면 다른 팀원의 키로 이 값만 바꾸면 됩니다. 크레딧이 없거나 호출이 실패하면 기본 방식(mock)으로 넘어가 서비스는 멈추지 않습니다.
+
+키는 `YEOUN_` 접두사 환경 변수로만 읽습니다(`YEOUN_NOVA_API_KEY`, `YEOUN_ANTHROPIC_API_KEY`, `YEOUN_OPENAI_API_KEY`, `YEOUN_GEMINI_API_KEY`). 입력을 학습에 쓰는 무료 등급(예: Gemini 무료)은 production에서 실제 사용자 자료에 쓰지 않고, staging에서는 사용자가 동의한 경우에만 씁니다. 각 공간의 설정 → 외부 서비스에서 자료가 어디로 가는지 볼 수 있습니다.
 
 ## 배포 (Render)
 

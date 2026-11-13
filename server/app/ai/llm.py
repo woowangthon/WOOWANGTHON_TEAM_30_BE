@@ -2,6 +2,7 @@
 
 LLM은 그 사람의 말을 만들지 않는다. 출력은 모두 app.ai.guard에서 스키마·후보 목록으로 검증한 뒤에만 쓴다.
 - mock: 규칙 기반 (외부 전송 없음)
+- nova: 충북대 NOVA API Gateway의 Anthropic 호환 주소로 Claude 호출 (같은 SDK, base_url만 다름)
 - anthropic: Claude (기본 claude-haiku-5-5), 공식 SDK + 구조화 출력
 - openai / gemini: REST 호출
 - replay: 녹화된 응답 재생 (테스트·데모)
@@ -156,28 +157,49 @@ class JsonLLM:
 class AnthropicLLM(JsonLLM):
     name = "anthropic"
 
-    def __init__(self, key: str):
+    def __init__(self, key: str, *, base_url: str | None = None, model: str | None = None):
         import anthropic  # 쓸 때만 불러온다
 
         s = get_settings()
         self._anthropic = anthropic
-        # 키는 YEOUN_ANTHROPIC_API_KEY에서만 받는다 (ANTHROPIC_API_KEY 등 SDK 기본 변수는 쓰지 않음)
-        self.client = anthropic.Anthropic(api_key=key, timeout=s.llm_timeout_sec, max_retries=1)
-        self.model = s.anthropic_model
+        # 키는 YEOUN_*_API_KEY에서만 받는다 (ANTHROPIC_API_KEY 등 SDK 기본 변수는 쓰지 않음)
+        self.client = anthropic.Anthropic(
+            api_key=key, base_url=base_url, timeout=s.llm_timeout_sec, max_retries=1
+        )
+        self.model = model or s.anthropic_model
+        # 게이트웨이가 구조화 출력(output_config)을 거절하면 그 뒤로는 스키마를 프롬프트에 넣어 부른다
+        self._structured = True
+
+    def _create(self, system: str, user: str, schema_name: str):
+        kwargs: dict[str, Any] = {
+            "model": self.model,
+            "max_tokens": 4000,
+            "system": system,
+            "messages": [{"role": "user", "content": user}],
+        }
+        if self._structured:
+            kwargs["output_config"] = {
+                "effort": "low",
+                "format": {"type": "json_schema", "schema": strict_schema(schema_name)},
+            }
+        else:
+            schema = json.dumps(strict_schema(schema_name), ensure_ascii=False)
+            kwargs["system"] = (
+                system + "\n\n다음 JSON 스키마에 맞는 JSON 객체 하나만 답하라. 다른 글은 쓰지 않는다.\n" + schema
+            )
+        return self.client.messages.create(**kwargs)
 
     def complete_json(self, system: str, user: str, schema_name: str) -> Any:
         a = self._anthropic
         try:
-            resp = self.client.messages.create(
-                model=self.model,
-                max_tokens=4000,
-                system=system,
-                messages=[{"role": "user", "content": user}],
-                output_config={
-                    "effort": "low",
-                    "format": {"type": "json_schema", "schema": strict_schema(schema_name)},
-                },
-            )
+            try:
+                resp = self._create(system, user, schema_name)
+            except a.BadRequestError:
+                if not self._structured:
+                    raise
+                log.info("structured_output_unsupported provider=%s; retry with prompt schema", self.name)
+                self._structured = False
+                resp = self._create(system, user, schema_name)
         except a.APITimeoutError as e:
             raise ProviderError("timeout") from e
         except a.APIStatusError as e:
@@ -192,9 +214,28 @@ class AnthropicLLM(JsonLLM):
         if text is None:
             raise ProviderError("bad_output", "no text")
         try:
-            return json.loads(text)
+            return json.loads(_strip_fence(text))
         except json.JSONDecodeError as e:
             raise ProviderError("bad_output", "json") from e
+
+
+def _strip_fence(text: str) -> str:
+    """```json ... ``` 로 감싼 답도 받는다 (스키마를 프롬프트로 줄 때)."""
+    t = text.strip()
+    if t.startswith("```"):
+        t = t.split("\n", 1)[1] if "\n" in t else ""
+        t = t.rsplit("```", 1)[0]
+    return t.strip()
+
+
+class NovaLLM(AnthropicLLM):
+    """충북대 NOVA API Gateway (Anthropic 호환 주소 …/v1/gateway/claude)."""
+
+    name = "nova"
+
+    def __init__(self, key: str):
+        s = get_settings()
+        super().__init__(key, base_url=s.nova_base_url.rstrip("/") + "/claude", model=s.nova_llm_model)
 
 
 class OpenAILLM(JsonLLM):
@@ -399,6 +440,11 @@ class ReplayLLM:
 
 
 def build(name: str):
+    if name == "nova":
+        key = api_key("nova")
+        if not key:
+            raise ProviderError("not_configured")
+        return NovaLLM(key)
     if name == "anthropic":
         key = api_key("anthropic")
         if not key:
