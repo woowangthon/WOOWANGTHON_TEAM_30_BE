@@ -34,6 +34,26 @@ log = logging.getLogger("yeoun.chat")
 # 이 아래면 LLM을 부르지 않고 바로 '딱 맞는 녹음은 없어요' (비용·환각 줄이기)
 LLM_FLOOR = 0.12
 
+# 맞는 녹음도, 가까운 추억도 없을 때 (가까운 추억을 놓아두겠다고 약속하지 않는다)
+NO_MATCH_ALONE_GUIDE = "딱 맞는 녹음은 없어요."
+# 대화에 쓸 녹음이 하나도 없을 때: 목소리를 아직 안 골랐는지, 녹음 자체가 없는지 알려 준다
+NO_CLIPS_PENDING_GUIDE = (
+    "아직 {person}의 목소리를 고르지 않아서 대화에 쓸 녹음이 없어요. "
+    "위 메뉴의 '목소리 확인'에서 {person}의 목소리를 골라 주세요."
+)
+NO_CLIPS_EMPTY_GUIDE = (
+    "아직 대화에 쓸 {person}의 녹음이 없어요. "
+    "'자료'에서 통화 녹음이나 음성 메시지를 올리고, '목소리 확인'에서 {person}의 목소리를 골라 주세요."
+)
+
+
+def _no_clips_guide(db: Session, space: Space) -> str:
+    pending = db.scalar(
+        select(func.count()).select_from(Speaker).where(Speaker.space_id == space.id, Speaker.role == "unknown")
+    )
+    template = NO_CLIPS_PENDING_GUIDE if pending else NO_CLIPS_EMPTY_GUIDE
+    return template.format(person=space.person_name)
+
 
 def load_docs(db: Session, space_id: str) -> list[ClipDoc]:
     rows = db.execute(
@@ -180,12 +200,15 @@ def answer(db: Session, space: Space, message: str, *, user_id: str | None, cons
     if matched:
         guide_text = checked.guide or GUIDE_BY_INTENT.get(intent.intent, GUIDE_BY_INTENT["general"])
         nearby_cards = []
+    elif not index.docs:
+        guide_text = _no_clips_guide(db, space)
+        nearby_cards = []
     else:
-        guide_text = NO_MATCH_GUIDE
         nearby_ids = _nearby(db, space, intent, user_id, set())
         nearby_cards = clip_cards(
             db, space.id, nearby_ids, user_id, {cid: "가까운 추억" for cid in nearby_ids}
         )
+        guide_text = NO_MATCH_GUIDE if nearby_cards else NO_MATCH_ALONE_GUIDE
 
     if level == "high":
         guide_text = (

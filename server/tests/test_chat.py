@@ -50,6 +50,27 @@ def test_no_match_is_honest(client):
     assert all(c["reason"] == "가까운 추억" for c in res["nearby"])
 
 
+def test_voice_not_chosen_yet_points_to_voice_review(client):
+    from tests.test_pipeline import processed_space
+
+    space, _ = processed_space(client)  # 올렸지만 '목소리 확인'을 아직 안 함
+    res = chat(client, space["id"], "보고 싶어요")
+    assert res["matched"] is False
+    assert res["clips"] == [] and res["nearby"] == []
+    assert "목소리 확인" in res["guide"]["text"]
+    assert "가까운 추억" not in res["guide"]["text"]  # 보여 줄 것이 없으면 약속하지 않는다
+
+
+def test_empty_space_points_to_upload(client):
+    from tests.conftest import create_space, signup
+
+    signup(client)
+    space = create_space(client)
+    res = chat(client, space["id"], "보고 싶어요")
+    assert res["clips"] == [] and res["nearby"] == []
+    assert "자료" in res["guide"]["text"]
+
+
 def test_crisis_shows_help_before_clips(client):
     space, _ = ready_space(client)
     res = chat(client, space["id"], "엄마 따라가고 싶어. 이제 다 끝내고 싶어")
