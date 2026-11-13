@@ -4,13 +4,15 @@
 # AI 공급자는 모두 mock — 키가 없어도 돈다.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+# 화면 코드는 FE 저장소. 기본은 같은 상위 폴더에 나란히 clone한 WOOWANGTHON_TEAM_30_FE
+WEB_DIR="$(cd "${WEB_DIR:-$ROOT/../WOOWANGTHON_TEAM_30_FE}" && pwd)"
 export LANG=C.UTF-8 LC_ALL=C.UTF-8   # 한글 파일 경로를 Playwright가 읽을 수 있게
 API_PORT=${E2E_API_PORT:-8100}
 WEB_PORT=${E2E_WEB_PORT:-3100}
 DB_NAME=${E2E_DB_NAME:-yeoun_e2e}
 PG_ADMIN_URL=${E2E_PG_ADMIN_URL:-postgresql://yeoun:yeoun@localhost:5432/postgres}
 DATA_DIR="$(mktemp -d -t yeoun-e2e-XXXX)"
-LOG_DIR="$ROOT/web/.e2e-logs"  # test-results는 Playwright가 지우므로 따로 둔다
+LOG_DIR="$WEB_DIR/.e2e-logs"  # test-results는 Playwright가 지우므로 따로 둔다
 mkdir -p "$LOG_DIR"
 
 psql "$PG_ADMIN_URL" -q -c "DROP DATABASE IF EXISTS $DB_NAME" -c "CREATE DATABASE $DB_NAME" >/dev/null
@@ -41,7 +43,7 @@ cd "$ROOT/server"
 YEOUN_ENV=development .venv/bin/uvicorn app.main:app --port "$API_PORT" >"$LOG_DIR/api.log" 2>&1 &
 API_PID=$!
 
-cd "$ROOT/web"
+cd "$WEB_DIR"
 YEOUN_API_ORIGIN="http://localhost:$API_PORT" npx next build >"$LOG_DIR/web-build.log" 2>&1
 YEOUN_API_ORIGIN="http://localhost:$API_PORT" npx next start -p "$WEB_PORT" >"$LOG_DIR/web.log" 2>&1 &
 WEB_PID=$!
