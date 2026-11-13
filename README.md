@@ -90,6 +90,16 @@ createdb -O yeoun yeoun && createdb -O yeoun yeoun_test
 
 ## 배포 (Render)
 
+**지금 배포된 주소** (2026-11-13)
+
+| 서비스 | 주소 | 설정 |
+|---|---|---|
+| 화면 (FE 저장소) | https://yeoun-team30-web.onrender.com | Render `yeoun-team30-web`, Node 22, Free, Singapore |
+| API (이 저장소) | https://yeoun-team30-api.onrender.com/api/health | Render `yeoun-team30-api`, Docker, Free, Singapore |
+| DB | Neon `yeoun-team30` | Postgres 16, Singapore |
+
+API 주소의 맨 앞(`/`)은 404가 정상입니다. 이 서버는 `/api/...`에만 응답하고 화면은 FE 주소에서 봅니다. Render는 공개 저장소 주소로 연결돼 있어 **push해도 자동 배포되지 않습니다.** main에 머지한 뒤 Render에서 Manual Deploy를 누르세요.
+
 `render.yaml`로 API(Docker, ffmpeg 포함)가 Render 무료 등급으로 뜨고, DB는 Neon 무료 PostgreSQL을 연결합니다. 화면은 FE 저장소에서 따로 배포합니다. 클릭 순서와 넣을 환경 변수는 [docs/DEPLOY.md](docs/DEPLOY.md)를 보세요.
 
 무료 등급은 15분 동안 요청이 없으면 잠듭니다. 웹이 시작할 때 API를 함께 깨우고, 화면은 "서버를 깨우는 중이에요" 안내와 함께 최대 2분 자동으로 다시 시도합니다.

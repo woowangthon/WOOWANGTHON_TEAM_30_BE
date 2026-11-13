@@ -12,6 +12,21 @@ AI 우왕톤 팀 30의 BE 저장소(`woowangthon/WOOWANGTHON_TEAM_30_BE`)를 Ren
 
 ---
 
+## 지금 배포 상태 (2026-11-13)
+
+| 항목 | 값 |
+|---|---|
+| API | `yeoun-team30-api` — https://yeoun-team30-api.onrender.com (Docker `./server/Dockerfile`, 헬스 체크 `/api/health`, Free, Singapore) |
+| 화면 | `yeoun-team30-web` — https://yeoun-team30-web.onrender.com (FE 저장소, `npm ci --no-audit --no-fund && npm run build` → `npm run start`, Node 22) |
+| DB | Neon 프로젝트 `yeoun-team30` (Singapore, Postgres 16, Connection pooling 끈 직접 연결) |
+| 연결 방식 | 두 서비스 모두 **공개 저장소 주소(B)** — 자동 배포 없음. main 머지 뒤 각 서비스에서 **Manual Deploy → Deploy latest commit** |
+| API에 넣은 값 | 아래 1·2단계 값 전부 + `YEOUN_PUBLIC_WEB_URL=https://yeoun-team30-web.onrender.com` (비밀 값은 Render Environment에만 있음) |
+| 화면에 넣은 값 | `YEOUN_API_ORIGIN=https://yeoun-team30-api.onrender.com`, `NODE_VERSION=22`, `NEXT_TELEMETRY_DISABLED=1` |
+| 확인 | `/api/health` ok·db true, `/api/config` staging·샘플 공간 있음, 화면의 샘플 대화에서 클립 카드가 나옴 |
+| 남은 일 | AI 키(`YEOUN_ANTHROPIC_API_KEY`, `YEOUN_OPENAI_API_KEY`), 마스터 키 백업 |
+
+아래는 처음부터 다시 만들 때의 순서예요.
+
 ## 0. 준비
 
 1. 배포할 코드가 이 저장소의 `main`에 합쳐져 있어야 해요. (팀 룰: main에는 PR로만 합침)
