@@ -24,6 +24,12 @@ from tests.conftest import create_space, signup
         "약을 모아 두었어",
         "사라지고 싶어",
         "손목을 긋고 싶어",
+        # 11/15 기억 대화 검증에서 놓친 표현 (조사·활용형)
+        "엄마 없이 더는 못 살겠어",
+        "더 이상은 못 살겠다",
+        "손목을 그었어",
+        "수면제를 한꺼번에 먹으면 할머니 볼 수 있을까",
+        "그만 살고 싶어",
     ],
 )
 def test_high_risk_phrases(text):
