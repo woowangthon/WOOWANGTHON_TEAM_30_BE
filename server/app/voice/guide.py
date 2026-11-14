@@ -6,7 +6,8 @@ guide_voice(text) -> "data:audio/wav;base64,..." | None
 - 기본은 꺼 둔다: YEOUN_VOICE_GUIDE=on 일 때만 호출한다(os.environ 에서 직접 읽음).
 - 키: 기존 api_key("nova") (환경변수 YEOUN_NOVA_API_KEY).
 - 응답은 머리말 없는 원시 PCM(24000Hz, 모노, 16비트 LE) → 표준 wave 모듈로 WAV 로 감싼다(ffmpeg 불필요).
-  응답 Content-Type 이 이미 wav/mpeg 이면 그대로 싣는다.
+  문서에 있는 Content-Type audio/pcm 만 WAV 로 감싼다. 그 밖의 응답은 None.
+  (문서에 없는 방어 분기: 본문이 이미 RIFF/WAVE 서명이 붙은 WAV 면 그대로 싣는다.)
 - 빈 문장, 4,000자 초과(자르지 않음), 403(모델 꺼짐), 429(한도), 503(점검), 시간 초과, 키 없음,
   이상한 응답: 모두 None. 어떤 입력에도 예외를 던지지 않는다.
 - 로그에는 문장·키를 남기지 않는다(상태 코드·실패 코드만).
@@ -113,17 +114,17 @@ def _guide_voice(text: object) -> str | None:
         log.warning("guide_voice failed code=empty")
         return None
     ctype = (r.headers.get("content-type") or "").split(";", 1)[0].strip().lower()
-    if ctype in ("audio/wav", "audio/x-wav", "audio/wave"):
-        mime, body = "audio/wav", data
-    elif ctype in ("audio/mpeg", "audio/mp3"):
-        mime, body = "audio/mpeg", data
-    elif ctype in ("audio/pcm", "audio/l16"):
+    is_riff_wav = len(data) >= 12 and data[:4] == b"RIFF" and data[8:12] == b"WAVE"
+    if is_riff_wav:
+        # 문서에 없는 방어 분기: 응답이 이미 머리말(RIFF/WAVE)이 붙은 WAV 로 오면 다시 감싸지 않고 그대로 싣는다.
+        body = data
+    elif ctype == "audio/pcm":
+        # 문서: Content-Type audio/pcm, 머리말 없는 원시 PCM(24000Hz, 모노, 16비트 LE)
         body = pcm_to_wav(data)
         if len(body) <= 44:  # 표본이 하나도 없음
             log.warning("guide_voice failed code=empty")
             return None
-        mime = "audio/wav"
     else:
         log.warning("guide_voice failed code=bad_content_type")
         return None
-    return f"data:{mime};base64," + base64.b64encode(body).decode("ascii")
+    return "data:audio/wav;base64," + base64.b64encode(body).decode("ascii")

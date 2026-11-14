@@ -1,6 +1,11 @@
-"""그분 목소리 합성 공급자: fal(실제) / mock(키 없을 때, 테스트·개발용).
+"""그분 목소리 합성 공급자: fal(실제) / mock(명시적으로 고를 때만, 테스트·개발용).
 
-synthesize(text, ref_audio, ref_text, model, *, ref_seconds, ref_mime, timeout) -> (audio, mime, 걸린 초)
+synthesize(text, ref_audio, ref_text, model, *, ref_seconds, ref_mime, timeout, provider="fal")
+    -> (audio, mime, 걸린 초)
+
+- provider="fal"(기본): 키(YEOUN_FAL_API_KEY)가 없으면 ProviderError("not_configured"). 무음으로 대신하지 않는다.
+- provider="mock": 네트워크 없이 짧은 무음 WAV. 명시적으로 고른 경우에만 쓴다.
+  app/voice/reply.py(그분 답장)는 언제나 provider="fal" 로 부르므로 mock 을 쓰지 않는다.
 
 - 모델(논리 이름 → fal endpoint_id)
     "qwen3-tts"  : Qwen3-TTS 1.7B. 복제(clone-voice) → 합성(text-to-speech) 2단계
@@ -9,11 +14,28 @@ synthesize(text, ref_audio, ref_text, model, *, ref_seconds, ref_mime, timeout) 
 - 긴 문장은 문장 단위로 묶어 300자 이하 조각으로 나눠 요청하고, 결과를 이어 붙인다.
 - 호출은 큐 방식이다: 제출 → 응답의 status_url 폴링 → response_url 결과 → audio.url 내려받기 → 삭제 API.
   (삭제 API 에 필요한 request_id 는 큐 제출 응답에서 얻는다.)
-- 개인정보: 모든 fal API 요청에 X-Fal-Store-IO: 0 과 X-Fal-Object-Lifecycle-Preference 를 넣는다.
+- 개인정보 헤더:
+    · 제출·상태 확인·결과 요청: Authorization, X-Fal-Store-IO: 0, X-Fal-Object-Lifecycle-Preference,
+      X-Fal-Request-Start-Timeout
+    · 취소·삭제 요청: Authorization, X-Fal-Store-IO: 0 (보관 기간·시작 대기 헤더는 넣지 않는다)
+    · 결과 파일(CDN) 내려받기: 헤더 없음(키를 보내지 않는다)
   참조 음성은 fal CDN 에 올리지 않고 data 주소로 요청 본문에 직접 싣는다.
-  끝나면(실패·시간 초과 포함) 생긴 request_id 마다 결과 파일 삭제 API 를 부른다. 끝나지 않은 요청은 먼저 취소한다.
-  삭제 실패는 예외로 올리지 않고 상태 코드만 로그에 남긴다.
+- 정리: 끝나면(실패·시간 초과 포함) 생긴 request_id 마다 결과 파일 삭제 API 를 부른다.
+  끝나지 않은 요청은 먼저 취소(cancel_url)하고, 정리 한도(CLEANUP_TIMEOUT_SEC) 안에서 status_url 을 짧게
+  확인해 끝난 것으로 보이면 삭제한다(문서: 끝나지 않은 요청의 삭제는 400). 그래도 지우지 못하면 예외 없이
+  코드만 로그에 남긴다("fal_payload_not_deleted").
+  한계: 그 경우 fal 쪽 결과 파일은 보관 기간 헤더(OBJECT_LIFECYCLE_SEC=3600초)에만 의존해 사라진다.
+  취소된 요청이 상태 확인에서 어떻게 보이는지(COMPLETED 로 바뀌는지)와 그 뒤 삭제가 되는지는 실제 fal 동작으로
+  미확인이다.
 - 로그·오류 detail 에 문장·자막·파일명·키·주소(서명이 붙을 수 있음)를 남기지 않는다.
+
+ProviderError 코드(app/ai/base.py 의 목록에 더해 이 모듈이 쓰는 것):
+    not_configured : fal 키 없음 (provider="fal")
+    bad_input      : 빈 문장·빈 참조·모르는 모델·모르는 참조 형식·모르는 provider
+    ref_too_short  : 참조 음성 3초 미만이거나 길이를 알 수 없음
+    timeout        : 전체 상한 초과 또는 HTTP 시간 초과
+    http_error     : HTTP 오류·fal 이 알린 오류(error/error_type)
+    bad_output     : 응답 모양이 이상함, 음성 서명이 아님, 형식이 섞임
 
 출처는 상수마다 주석으로 단다. "미확인"은 공식 문서에서 확인하지 못한 것이다.
 """
@@ -86,7 +108,9 @@ START_TIMEOUT_HEADER = "X-Fal-Request-Start-Timeout"
 # --- 시간 제한 -------------------------------------------------------------------
 DEFAULT_TIMEOUT_SEC = 60.0  # synthesize 전체 상한 기본값(reply.py 는 남은 시간을 넘긴다)
 HTTP_TIMEOUT_SEC = 15.0  # HTTP 요청 하나의 상한(남은 시간이 더 짧으면 그만큼)
-CLEANUP_TIMEOUT_SEC = 5.0  # 취소·삭제 요청 하나의 상한(전체 상한이 지난 뒤에도 정리는 시도한다)
+# 정리 한도(초): 끝나지 않은 요청 하나의 '취소 + 상태 확인' 전체 상한, 그리고 삭제 요청 하나의 상한.
+# 전체 상한(timeout)이 지난 뒤에도 정리는 이 한도 안에서 시도한다.
+CLEANUP_TIMEOUT_SEC = 5.0
 POLL_INTERVAL_SEC = 0.5  # 상태 폴링 간격
 
 _sleep = time.sleep  # 테스트에서 바꿔 끼운다
@@ -101,16 +125,19 @@ def fal_key() -> str | None:
     return v or None
 
 
-def provider_name() -> str:
-    return "fal" if fal_key() else "mock"
-
-
 def sniff_mime(data: bytes) -> str | None:
-    """파일 앞부분 서명으로 형식을 판별한다(WAV/MPEG 만)."""
+    """파일 앞부분 서명으로 형식을 판별한다(WAV/MPEG 만).
+
+    WAV: RIFF....WAVE. MPEG: ID3 태그 또는 프레임 동기(11비트) + 버전·레이어가 예약값이 아님
+    (레이어 00 인 AAC ADTS 는 MPEG 오디오로 보지 않는다).
+    """
     if len(data) >= 12 and data[:4] == b"RIFF" and data[8:12] == b"WAVE":
         return "audio/wav"
-    if data[:3] == b"ID3" or (len(data) >= 2 and data[0] == 0xFF and (data[1] & 0xE0) == 0xE0):
+    if data[:3] == b"ID3":
         return "audio/mpeg"
+    if len(data) >= 2 and data[0] == 0xFF and (data[1] & 0xE0) == 0xE0:
+        if ((data[1] >> 3) & 3) != 1 and ((data[1] >> 1) & 3) != 0:
+            return "audio/mpeg"
     return None
 
 
@@ -219,9 +246,15 @@ def synthesize(
     ref_seconds: float | None = None,
     ref_mime: str | None = None,
     timeout: float = DEFAULT_TIMEOUT_SEC,
+    provider: str = "fal",
 ) -> tuple[bytes, str, float]:
-    """그분 목소리로 text 를 합성한다. 실패는 ProviderError(code) 로 올린다."""
+    """그분 목소리로 text 를 합성한다. 실패는 ProviderError(code) 로 올린다.
+
+    provider="fal"(기본)은 키가 없으면 not_configured. provider="mock" 은 명시적으로 고를 때만 무음 WAV.
+    """
     started = time.monotonic()
+    if provider not in ("fal", "mock"):
+        raise ProviderError("bad_input", "unknown provider")
     if not isinstance(text, str) or not text.strip():
         raise ProviderError("bad_input", "empty text")
     if not isinstance(ref_audio, (bytes, bytearray)) or not ref_audio:
@@ -246,10 +279,12 @@ def synthesize(
     chunks = split_text(text.strip())
     if not chunks:
         raise ProviderError("bad_input", "empty text")
-    key = fal_key()
-    if key is None:
+    if provider == "mock":
         audio, out_mime = silent_wav(), "audio/wav"
     else:
+        key = fal_key()
+        if key is None:
+            raise ProviderError("not_configured", "fal key missing")
         job = _FalJob(key, started + max(0.0, float(timeout)))
         try:
             audio, out_mime = job.run(
@@ -360,13 +395,14 @@ class _FalJob:
         if r.status_code != 200 or not r.content:
             raise ProviderError("http_error", f"download status={r.status_code}")
         data = r.content
-        mime = (
-            _norm_mime(file.get("content_type"))
-            or _norm_mime(r.headers.get("content-type"))
-            or sniff_mime(data)
-        )
-        if mime is None:
-            raise ProviderError("bad_output", "unknown audio format")
+        # 형식: File 의 content_type → HTTP 응답 헤더 → 파일 앞부분 서명 순으로 정하고,
+        # 언제나 서명으로 교차 확인한다(200 에 HTML 등이 와도 음성으로 통과시키지 않는다).
+        signed = sniff_mime(data)
+        if signed is None:
+            raise ProviderError("bad_output", "not audio")
+        mime = _norm_mime(file.get("content_type")) or _norm_mime(r.headers.get("content-type")) or signed
+        if mime != signed:
+            raise ProviderError("bad_output", "content type mismatch")
         return data, mime
 
     # --- 모델 ---
@@ -413,19 +449,49 @@ class _FalJob:
             STORE_IO_HEADER[0]: STORE_IO_HEADER[1],
         }
 
-    def cleanup(self) -> None:
-        """끝나지 않은 요청은 취소하고, 모든 request_id 의 결과 파일을 삭제한다. 예외를 올리지 않는다."""
-        for req in self.requests:
-            if not req.get("done") and req.get("cancel_url"):
-                try:
-                    r = httpx.request(
-                        "PUT", req["cancel_url"], headers=self._cleanup_headers(), timeout=CLEANUP_TIMEOUT_SEC
-                    )
-                    if r.status_code >= 300:
-                        log.warning("fal_cancel_failed status=%s", r.status_code)
-                except Exception as e:
-                    log.warning("fal_cancel_failed error=%s", type(e).__name__)
+    def _settle(self, req: dict[str, Any]) -> bool:
+        """끝나지 않은 요청을 취소하고, 정리 한도 안에서 status_url 을 짧게 확인해 끝났는지 본다.
+
+        취소된 요청이 상태 확인에서 COMPLETED 로 보이는지는 실제 fal 동작으로 미확인이다.
+        """
+        until = time.monotonic() + CLEANUP_TIMEOUT_SEC
+        if req.get("cancel_url"):
             try:
+                r = httpx.request(
+                    "PUT", req["cancel_url"], headers=self._cleanup_headers(), timeout=CLEANUP_TIMEOUT_SEC
+                )
+                if r.status_code >= 300:
+                    log.warning("fal_cancel_failed status=%s", r.status_code)
+            except Exception as e:
+                log.warning("fal_cancel_failed error=%s", type(e).__name__)
+        while True:
+            left = until - time.monotonic()
+            if left <= 0:
+                return False
+            try:
+                r = httpx.request("GET", req["status_url"], headers=self._cleanup_headers(), timeout=left)
+                st = r.json() if r.status_code in (200, 202) else None
+                if isinstance(st, dict) and st.get("status") == "COMPLETED":
+                    return True
+            except Exception as e:
+                log.warning("fal_cleanup_status_failed error=%s", type(e).__name__)
+            left = until - time.monotonic()
+            if left <= 0:
+                return False
+            _sleep(min(POLL_INTERVAL_SEC, left))
+
+    def cleanup(self) -> None:
+        """끝나지 않은 요청은 취소·확인하고, 모든 request_id 의 결과 파일을 삭제한다. 예외를 올리지 않는다."""
+        for req in self.requests:
+            finished = True
+            if not req.get("done"):
+                try:
+                    finished = self._settle(req)
+                except Exception as e:
+                    finished = False
+                    log.warning("fal_cleanup_status_failed error=%s", type(e).__name__)
+            try:
+                # 끝났는지 확인하지 못했어도 한 번은 시도한다(실패하면 아래에서 '지우지 못함' 로그).
                 r = httpx.request(
                     "DELETE",
                     FAL_DELETE_URL.format(request_id=req["id"]),
@@ -434,7 +500,12 @@ class _FalJob:
                 )
                 if r.status_code != 200:
                     # 400: 요청이 아직 끝나지 않음(문서). 그 밖에 401/403/404/429/500.
-                    log.warning("fal_delete_failed status=%s", r.status_code)
+                    # 이 경우 결과 파일은 보관 기간 헤더(OBJECT_LIFECYCLE_SEC)에만 의존한다.
+                    log.warning(
+                        "fal_payload_not_deleted status=%s finished=%s",
+                        r.status_code,
+                        "yes" if finished else "no",
+                    )
                 else:
                     failed = 0
                     try:
@@ -445,4 +516,4 @@ class _FalJob:
                     if failed:
                         log.warning("fal_delete_partial failed_files=%d", failed)
             except Exception as e:
-                log.warning("fal_delete_failed error=%s", type(e).__name__)
+                log.warning("fal_payload_not_deleted error=%s", type(e).__name__)

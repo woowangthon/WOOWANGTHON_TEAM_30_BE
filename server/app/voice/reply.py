@@ -38,7 +38,11 @@ log = logging.getLogger("yeoun.voice")
 
 # 합성 전체(참조 클립 읽기 + 합성 호출)의 시간 제한(초).
 # 대화 답장이 이보다 오래 멈추지 않게 한다. 넘으면 합성을 버리고 None(답장 글자만 나간다).
-# 넘긴 뒤에도 공급자 호출 스레드는 공급자 자체 시간 제한까지 뒤에서 끝나기를 기다리며, 결과는 버린다.
+# 넘긴 뒤에도 공급자 호출 스레드는 공급자 자체 시간 제한까지 뒤에서 끝나기를 기다리며, 결과는 버린다
+# (남은 시간을 공급자 timeout 으로 넘기므로 오래 남지 않는다. 취소·삭제 정리는 그 뒤에도 잠깐 돈다).
+# 엄밀한 상한이 아니다: 그분 클립 DB 조회(person_clips) 한 번과 저장소 읽기(blobstore.load) 한 번에는
+# 이 제한이 걸리지 않는다(읽기 사이사이에만 남은 시간을 확인한다). DB 세션은 스레드 간에 안전하지 않고,
+# 시간 초과 뒤 호출부(generated_reply)가 같은 세션을 계속 쓰므로 조회·읽기를 다른 스레드로 옮기지 않았다.
 VOICE_REPLY_TIMEOUT_SEC = 15.0
 
 ENV_SWITCH = "YEOUN_VOICE_SYNTH"  # "on" 일 때만 합성
@@ -80,16 +84,64 @@ def _strip_id3v1(b: bytes) -> bytes:
     return b
 
 
+# MPEG Layer III 비트레이트(kbps)·표본화율 표 (ISO/IEC 11172-3, 13818-3)
+_BR_V1_L3 = (0, 32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320)
+_BR_V2_L3 = (0, 8, 16, 24, 32, 40, 48, 56, 64, 80, 96, 112, 128, 144, 160)
+_SR = {3: (44100, 48000, 32000), 2: (22050, 24000, 16000), 0: (11025, 12000, 8000)}
+
+
+def _strip_vbr_header_frame(b: bytes) -> bytes:
+    """맨 앞 프레임이 LAME/Xing 'Xing'·'Info' 또는 'VBRI' 머리 프레임이면 그 프레임을 뗀다.
+
+    이 프레임은 소리가 아니라 '이 파일 전체'의 프레임 수·길이 정보라, 잇기 뒤에 남으면 길이가 틀리게 보인다.
+    Layer III 만 해석하고, 해석할 수 없으면 그대로 둔다.
+    """
+    if len(b) < 4 or b[0] != 0xFF or (b[1] & 0xE0) != 0xE0:
+        return b
+    version = (b[1] >> 3) & 3
+    layer = (b[1] >> 1) & 3
+    if version == 1 or layer != 1:  # 예약값이거나 Layer III 가 아님
+        return b
+    br_idx, sr_idx, pad = b[2] >> 4, (b[2] >> 2) & 3, (b[2] >> 1) & 1
+    if br_idx in (0, 15) or sr_idx == 3:
+        return b
+    mpeg1 = version == 3
+    bitrate = (_BR_V1_L3 if mpeg1 else _BR_V2_L3)[br_idx] * 1000
+    rate = _SR[version][sr_idx]
+    frame_len = (144 if mpeg1 else 72) * bitrate // rate + pad
+    mono = (b[3] >> 6) == 3
+    side = (17 if mono else 32) if mpeg1 else (9 if mono else 17)
+    crc = 0 if (b[1] & 1) else 2
+    off = 4 + crc + side
+    if frame_len <= off + 4 or len(b) < frame_len:
+        return b
+    if b[off : off + 4] in (b"Xing", b"Info") or b[36:40] == b"VBRI":
+        return b[frame_len:]
+    return b
+
+
 def join_mp3(parts: list[bytes]) -> bytes:
-    """같은 설정으로 인코딩된 mp3 여러 개를 하나로 잇는다. 가운데 태그는 떼어 낸다."""
+    """같은 설정으로 인코딩된 mp3 여러 개를 하나로 잇는다.
+
+    가운데 ID3 태그를 떼고, 둘 이상을 이을 때는 각 조각의 Xing/Info/VBRI 머리 프레임을 뗀다
+    (조각 하나의 길이 정보가 이은 전체의 길이로 잘못 읽히지 않게. 결과는 머리 프레임 없는 CBR 스트림).
+    """
+    if len(parts) == 1:
+        return parts[0]
     out: list[bytes] = []
     n = len(parts)
     for i, p in enumerate(parts):
-        if i > 0:
+        head = b""
+        if i == 0 and p[:3] == b"ID3":
+            body = _strip_id3v2(p)
+            head = p[: len(p) - len(body)]
+            p = body
+        else:
             p = _strip_id3v2(p)
+        p = _strip_vbr_header_frame(p)
         if i < n - 1:
             p = _strip_id3v1(p)
-        out.append(p)
+        out.append(head + p)
     return b"".join(out)
 
 
@@ -113,6 +165,8 @@ def _default_synthesize(
     text: str, ref_audio: bytes, ref_text: str, model: str, **kw: Any
 ) -> tuple[bytes, str, float]:
     provider = importlib.import_module("app.voice.provider")
+    # 그분 답장에는 절대 mock(무음)을 쓰지 않는다: 언제나 실제 공급자(fal)만. 키가 없으면 not_configured.
+    kw["provider"] = "fal"
     return provider.synthesize(text, ref_audio, ref_text, model, **kw)
 
 
@@ -255,25 +309,33 @@ def _run(
     left = remaining()
     if left <= 0:
         raise _Skip("timeout")
+
+    def guarded() -> tuple[bool, Any]:
+        # 공급자 스레드 안에서 난 것은 BaseException(KeyboardInterrupt·SystemExit 등)까지 잡아 결과로 넘긴다.
+        # 그대로 두면 Future 가 그 예외를 메인 스레드의 fut.result() 에서 다시 던져 대화 응답 밖으로 샌다.
+        # 반대로 메인 스레드에서 직접 난 KeyboardInterrupt·SystemExit 는 synth_for_reply 가 잡지 않는다
+        # (except Exception 만 씀): 서버를 멈추라는 신호는 삼키지 않는 것이 맞다.
+        try:
+            # 남은 시간을 공급자에게도 넘겨, 여기서 포기한 뒤 공급자 스레드가 뒤에서 오래 남지 않게 한다.
+            return True, synthesize(
+                say, ref_audio, ref_text, model, ref_seconds=pick.total_sec, ref_mime=REF_MIME, timeout=left
+            )
+        except BaseException as e:  # noqa: BLE001 - 스레드 경계에서 결과로 바꾼다
+            return False, e
+
     ex = concurrent.futures.ThreadPoolExecutor(max_workers=1, thread_name_prefix="yeoun-voice")
     try:
-        # 남은 시간을 공급자에게도 넘겨, 여기서 포기한 뒤 공급자 스레드가 뒤에서 오래 남지 않게 한다.
-        fut = ex.submit(
-            synthesize,
-            say,
-            ref_audio,
-            ref_text,
-            model,
-            ref_seconds=pick.total_sec,
-            ref_mime=REF_MIME,
-            timeout=left,
-        )
+        fut = ex.submit(guarded)
         try:
-            result = fut.result(timeout=left)
+            ok, result = fut.result(timeout=left)
         except concurrent.futures.TimeoutError as e:
             raise _Skip("timeout") from e
     finally:
         ex.shutdown(wait=False, cancel_futures=True)
+    if not ok:
+        if isinstance(result, Exception):
+            raise result
+        raise _Skip("provider_aborted")
 
     if not isinstance(result, (tuple, list)) or len(result) < 2:
         raise _Skip("bad_output")

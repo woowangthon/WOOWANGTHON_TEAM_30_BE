@@ -151,6 +151,43 @@ def test_default_path_uses_provider_module(monkeypatch):
     url = call()
     assert url == "data:audio/wav;base64," + base64.b64encode(b"ok").decode()
     assert seen["args"][3] == DEFAULT_MODEL
+    assert seen["kw"]["provider"] == "fal"  # 그분 답장은 언제나 실제 공급자(mock 금지)
+    # 누가 mock 을 넘겨도 기본 경로는 fal 로 바꾼다
+    reply._default_synthesize("a", b"b", "c", DEFAULT_MODEL, provider="mock")
+    assert seen["kw"]["provider"] == "fal"
+
+
+def test_real_provider_without_key_never_returns_silence(monkeypatch):
+    """reply 가 키를 확인한 뒤 키가 사라져도, 실제 provider 는 무음 대신 not_configured → None."""
+    on(monkeypatch)
+    real = __import__("app.voice.provider", fromlist=["synthesize"])
+    monkeypatch.setitem(sys.modules, "app.voice.provider", real)
+
+    def loader(db, space_id):
+        monkeypatch.delenv(ENV_FAL_KEY)  # 클립을 고르는 사이 키가 사라짐
+        return [(clip("c1", 6), None), (clip("c2", 5), None)]
+
+    assert call(clips_loader=loader) is None
+
+
+def test_base_exception_in_provider_thread_does_not_escape(monkeypatch):
+    on(monkeypatch)
+    for exc in (KeyboardInterrupt(), SystemExit(1), GeneratorExit()):
+        assert call(synthesize=FakeSynth(exc=exc)) is None
+
+
+def test_keyboard_interrupt_on_main_thread_is_not_swallowed(monkeypatch):
+    on(monkeypatch)
+
+    def interrupted(db, space_id):
+        raise KeyboardInterrupt
+
+    try:
+        call(clips_loader=interrupted, synthesize=FakeSynth())
+    except KeyboardInterrupt:
+        pass
+    else:
+        raise AssertionError("메인 스레드의 KeyboardInterrupt 는 삼키지 않는다")
 
 
 # --- 실패하면 None -------------------------------------------------------------
@@ -315,3 +352,33 @@ def test_join_mp3_strips_inner_tags():
     assert out == id3v2(b"hdrA") + b"FRAMES_A" + b"FRAMES_B" + id3v1
     assert join_mp3([b"x"]) == b"x"
     assert join_mp3([]) == b""
+
+
+# MPEG-2 Layer III, 24kHz, 64kbps, 모노, CRC 없음 (cut_clip 설정과 같음): 프레임 길이 72*64000/24000 = 192
+_HDR = bytes([0xFF, 0xF3, 0x84, 0xC0])
+
+
+def _frame(fill: bytes = b"\x00") -> bytes:
+    return _HDR + fill * 188
+
+
+def _info_frame(tag: bytes = b"Info") -> bytes:
+    body = b"\x00" * 9 + tag  # 사이드 정보 9바이트 뒤에 태그
+    return _HDR + body + b"\x00" * (188 - len(body))
+
+
+def test_join_mp3_drops_xing_info_header_frames():
+    a = _info_frame(b"Info") + _frame(b"\x11")
+    b = _info_frame(b"Xing") + _frame(b"\x22") + _frame(b"\x33")
+    out = join_mp3([a, b])
+    assert out == _frame(b"\x11") + _frame(b"\x22") + _frame(b"\x33")
+    assert b"Info" not in out and b"Xing" not in out
+    assert len(out) % 192 == 0
+
+
+def test_join_mp3_keeps_ordinary_frames_and_single_part():
+    a = _frame(b"\x11")
+    b = _frame(b"\x22")
+    assert join_mp3([a, b]) == a + b
+    single = _info_frame() + _frame()
+    assert join_mp3([single]) == single  # 하나면 손대지 않는다

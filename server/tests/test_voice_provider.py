@@ -49,6 +49,7 @@ class FakeFal:
         delete_status=200,
         fail_on=None,
         raise_timeout_on=None,
+        cancel_completes=True,
     ):
         self.calls: list[dict] = []
         self.n = 0
@@ -61,6 +62,9 @@ class FakeFal:
         self.fail_on = fail_on
         self.raise_timeout_on = raise_timeout_on
         self.tts_count = 0
+        self.cancel_completes = cancel_completes
+        self.cancelled: set[str] = set()
+        self.finished: set[str] = set()
 
     def __call__(self, method, url, headers=None, json=None, timeout=None):
         self.calls.append(
@@ -85,6 +89,10 @@ class FakeFal:
                 },
             )
         if method == "GET" and url.endswith("/status"):
+            rid = url.split("/requests/")[1].split("/")[0]
+            if rid in self.cancelled:
+                st = "COMPLETED" if self.cancel_completes else "IN_PROGRESS"
+                return httpx.Response(200, json={"status": st})
             if self.status_error:
                 return httpx.Response(
                     200, json={"status": "COMPLETED", "error": "boom", "error_type": self.status_error}
@@ -94,6 +102,7 @@ class FakeFal:
         if method == "GET" and url.startswith("https://queue.fal.run/"):
             rid = url.rsplit("/", 1)[-1]
             ep = self.endpoint_of[rid]
+            self.finished.add(rid)
             if self.fail_on and self.fail_on in ep:
                 return httpx.Response(500, json={"detail": "server error"})
             if ep == P.QWEN_CLONE_ENDPOINT:
@@ -117,8 +126,15 @@ class FakeFal:
         if method == "GET" and "fal.media" in url:
             return httpx.Response(200, content=self.audio[0])
         if method == "PUT":
+            rid = url.split("/requests/")[1].split("/")[0]
+            self.cancelled.add(rid)
+            if self.cancel_completes:
+                self.finished.add(rid)
             return httpx.Response(200, json={})
         if method == "DELETE":
+            rid = url.split("/requests/")[1].split("/")[0]
+            if rid not in self.finished:  # 문서: 끝나지 않은 요청은 400
+                return httpx.Response(400, json={"detail": "not finished"})
             return httpx.Response(self.delete_status, json={"cdn_delete_results": []})
         raise AssertionError(f"unexpected {method} {url}")
 
@@ -129,7 +145,8 @@ class FakeFal:
 @pytest.fixture
 def fal(monkeypatch):
     monkeypatch.setenv(P.ENV_FAL_KEY, FAKE_KEY)
-    monkeypatch.setattr(P, "_sleep", lambda s: None)
+    monkeypatch.setattr(P, "_sleep", lambda s: time.sleep(0.005))
+    monkeypatch.setattr(P, "CLEANUP_TIMEOUT_SEC", 0.3)  # 정리 한도를 줄여 테스트를 빠르게
 
     def install(**kw):
         f = FakeFal(**kw)
@@ -344,7 +361,24 @@ def test_overall_timeout_cancels_and_deletes(fal, monkeypatch):
     assert e.value.code == "timeout"
     assert time.monotonic() - t0 < 3
     assert len(f.of("PUT")) == 1 and f.of("PUT")[0]["url"].endswith("/cancel")  # 끝나지 않은 요청 취소
+    # 순서: 취소 → 상태 확인(끝남) → 삭제
+    seq = [(c["method"], c["url"].rsplit("/", 1)[-1]) for c in f.calls]
+    i_put = seq.index(("PUT", "cancel"))
+    i_del = max(i for i, s in enumerate(seq) if s[0] == "DELETE")
+    assert ("GET", "status") in seq[i_put:i_del]
     assert deleted_ids(f) == ["req-1"]
+
+
+def test_cancelled_request_never_finishes_logs_not_deleted(fal, caplog):
+    f = fal(status_seq=["IN_PROGRESS"] * 10_000, cancel_completes=False)
+    with caplog.at_level(logging.WARNING, logger="yeoun.voice.provider"):
+        with pytest.raises(ProviderError) as e:
+            P.synthesize("응", REF, "", "chatterbox", ref_seconds=5, timeout=0.2)
+    assert e.value.code == "timeout"
+    assert len(f.of("PUT")) == 1
+    assert len(f.of("GET", "/status")) >= 2  # 취소 뒤에도 상태를 확인했다
+    assert deleted_ids(f) == ["req-1"]  # 한 번은 시도
+    assert "fal_payload_not_deleted status=400 finished=no" in caplog.text
 
 
 def test_http_timeout_becomes_provider_error(fal):
@@ -360,26 +394,66 @@ def test_delete_failure_does_not_raise(fal, caplog):
     with caplog.at_level(logging.WARNING, logger="yeoun.voice.provider"):
         audio, mime, _ = P.synthesize("응", REF, "", "chatterbox", ref_seconds=5)
     assert audio
-    assert "fal_delete_failed status=500" in caplog.text
+    assert "fal_payload_not_deleted status=500 finished=yes" in caplog.text
 
 
-# --- mock -----------------------------------------------------------------------
+# --- 내려받은 음성 형식 교차 확인 ----------------------------------------------------
 
 
-def test_mock_provider_without_key(monkeypatch):
+def test_html_with_audio_content_type_is_bad_output(fal):
+    f = fal(audio=[b"<!DOCTYPE html><html>error</html>"], audio_ct="audio/mpeg")
+    with pytest.raises(ProviderError) as e:
+        P.synthesize("응", REF, "", "chatterbox", ref_seconds=5)
+    assert e.value.code == "bad_output"
+    assert deleted_ids(f) == ["req-1"]
+
+
+def test_declared_type_must_match_signature(fal):
+    fal(audio=[wav(0.1)], audio_ct="audio/mpeg")
+    with pytest.raises(ProviderError) as e:
+        P.synthesize("응", REF, "", "chatterbox", ref_seconds=5)
+    assert e.value.code == "bad_output"
+
+
+def test_sniff_mime():
+    assert P.sniff_mime(wav(0.01)) == "audio/wav"
+    assert P.sniff_mime(MP3) == "audio/mpeg"
+    assert P.sniff_mime(b"ID3\x04") == "audio/mpeg"
+    assert P.sniff_mime(b"\xff\xf1\x50\x80") is None  # AAC ADTS(레이어 00)
+    assert P.sniff_mime(b"<html>") is None
+    assert P.sniff_mime(b"") is None
+
+
+# --- 키 없음·mock ------------------------------------------------------------------
+
+
+def no_network(*a, **k):
+    raise AssertionError("네트워크를 부르면 안 된다")
+
+
+def test_no_key_is_not_configured_and_never_silent(monkeypatch):
     monkeypatch.delenv(P.ENV_FAL_KEY, raising=False)
-
-    def no_network(*a, **k):
-        raise AssertionError("네트워크를 부르면 안 된다")
-
     monkeypatch.setattr(P.httpx, "request", no_network)
-    assert P.provider_name() == "mock"
-    audio, mime, secs = P.synthesize("안녕", REF, "", "qwen3-tts", ref_seconds=5)
+    with pytest.raises(ProviderError) as e:
+        P.synthesize("안녕", REF, "", "qwen3-tts", ref_seconds=5)
+    assert e.value.code == "not_configured"
+    with pytest.raises(ProviderError) as e:
+        P.synthesize("안녕", REF, "", "qwen3-tts", ref_seconds=5, provider="fal")
+    assert e.value.code == "not_configured"
+    with pytest.raises(ProviderError) as e:
+        P.synthesize("안녕", REF, "", "qwen3-tts", ref_seconds=5, provider="other")
+    assert e.value.code == "bad_input"
+
+
+def test_mock_provider_only_when_chosen(monkeypatch):
+    monkeypatch.setenv(P.ENV_FAL_KEY, FAKE_KEY)  # 키가 있어도 mock 을 고르면 네트워크 없음
+    monkeypatch.setattr(P.httpx, "request", no_network)
+    audio, mime, secs = P.synthesize("안녕", REF, "", "qwen3-tts", ref_seconds=5, provider="mock")
     assert mime == "audio/wav"
     with wave.open(io.BytesIO(audio), "rb") as w:
         assert w.getnframes() > 0
     with pytest.raises(ProviderError):  # mock 도 3초 미만은 거절
-        P.synthesize("안녕", REF, "", "qwen3-tts", ref_seconds=1)
+        P.synthesize("안녕", REF, "", "qwen3-tts", ref_seconds=1, provider="mock")
 
 
 # --- 로그 -----------------------------------------------------------------------
