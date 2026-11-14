@@ -21,7 +21,7 @@ from app.errors import ApiError
 from app.models import Clip, Favorite, UsageCounter, User
 from app.routers.assets import read_limited
 from app.routers.auth import client_ip
-from app.schemas import CallRequest, CallResponse, ChatRequest, ChatResponse, FavoriteUpdate, TranscribeResponse
+from app.schemas import ChatRequest, ChatResponse, FavoriteUpdate, TalkRequest, TalkResponse, TranscribeResponse
 from app.security.auth import SpaceAccess, current_user, space_reader
 from app.services.chat import answer
 from app.services.talk import talk as persona_talk
@@ -92,14 +92,14 @@ def chat(
     return resp
 
 
-@router.post("/spaces/{space_id}/talk", response_model=CallResponse)
+@router.post("/spaces/{space_id}/talk", response_model=TalkResponse)
 def talk(
-    body: CallRequest,
+    body: TalkRequest,
     request: Request,
     access: SpaceAccess = Depends(space_reader),
     db: Session = Depends(get_db),
-) -> CallResponse:
-    """그 사람과 메신저처럼 대화: 답장 하나 (원본 녹음 또는 근거가 붙은 AI 답)."""
+) -> TalkResponse:
+    """기억 대화: 그 사람과 메신저처럼 대화: 답장 하나 (원본 녹음 또는 근거가 붙은 AI 답)."""
     remaining = None
     if access.user is None:
         _sample_rate_limit(client_ip(request))

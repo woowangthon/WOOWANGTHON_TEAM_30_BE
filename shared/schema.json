@@ -713,167 +713,7 @@
       "required": ["collections"],
       "properties": { "collections": { "type": "array", "items": { "$ref": "#/$defs/Collection" } } }
     },
-
-    "BookStatus": {
-      "description": "기억책 상태. draft는 가족 검수 전, approved는 가족이 승인한 책.",
-      "type": "string",
-      "enum": [
-        "draft",
-        "approved"
-      ]
-    },
-    "BookParagraph": {
-      "type": "object",
-      "description": "책 문단. AI가 쓴 정리 문장이고, clip_ids는 근거가 된 원본 녹음이다. 근거가 없으면 grounded=false로 표시한다.",
-      "required": [
-        "id",
-        "text",
-        "clip_ids",
-        "grounded",
-        "edited"
-      ],
-      "properties": {
-        "id": {
-          "type": "string"
-        },
-        "text": {
-          "type": "string"
-        },
-        "clip_ids": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        },
-        "grounded": {
-          "type": "boolean"
-        },
-        "edited": {
-          "type": "boolean",
-          "description": "가족이 고친 문단"
-        }
-      }
-    },
-    "BookChapter": {
-      "type": "object",
-      "required": [
-        "id",
-        "title",
-        "paragraphs"
-      ],
-      "properties": {
-        "id": {
-          "type": "string"
-        },
-        "title": {
-          "type": "string"
-        },
-        "period": {
-          "type": [
-            "string",
-            "null"
-          ],
-          "description": "예: 1970년대 / 시기 모름"
-        },
-        "paragraphs": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/BookParagraph"
-          }
-        },
-        "prompt": {
-          "type": [
-            "string",
-            "null"
-          ],
-          "description": "가족이 적은 기억 (이 장을 만든 요청)"
-        }
-      }
-    },
-    "Book": {
-      "type": "object",
-      "description": "목소리가 들리는 기억책. clips에는 문단 근거 클립의 카드가 한 번씩 들어 있다.",
-      "required": [
-        "exists",
-        "chapters",
-        "clips",
-        "can_edit"
-      ],
-      "properties": {
-        "exists": {
-          "type": "boolean"
-        },
-        "status": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/BookStatus"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "title": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "chapters": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/BookChapter"
-          }
-        },
-        "clips": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/ClipCard"
-          }
-        },
-        "generated_by": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "updated_at": {
-          "type": [
-            "string",
-            "null"
-          ],
-          "format": "date-time"
-        },
-        "grounded_ratio": {
-          "type": [
-            "number",
-            "null"
-          ],
-          "description": "근거 클립이 붙은 문단 비율"
-        },
-        "can_edit": {
-          "type": "boolean"
-        },
-        "source_clip_count": {
-          "type": "integer",
-          "description": "책을 만들 때 쓸 수 있는 그 사람의 녹음 수"
-        }
-      }
-    },
-    "BookParagraphUpdate": {
-      "type": "object",
-      "required": [
-        "text"
-      ],
-      "properties": {
-        "text": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 1000
-        }
-      }
-    },
-    "CallTurn": {
+    "TalkTurn": {
       "type": "object",
       "required": [
         "role",
@@ -893,7 +733,7 @@
         }
       }
     },
-    "CallRequest": {
+    "TalkRequest": {
       "type": "object",
       "required": [
         "message"
@@ -907,14 +747,14 @@
         "history": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/CallTurn"
+            "$ref": "#/$defs/TalkTurn"
           },
           "maxItems": 12
         }
       }
     },
-    "CallMode": {
-      "description": "기억 통화 답의 종류. original: 원본 녹음, generated: AI 생성(근거 표시), guide: 여운 안내, crisis: 위기 전환",
+    "TalkMode": {
+      "description": "기억 대화 답장의 종류. original: 원본 녹음, generated: AI가 만든 말(근거 표시), guide: 여운 안내, crisis: 위기 전환",
       "type": "string",
       "enum": [
         "original",
@@ -923,7 +763,7 @@
         "crisis"
       ]
     },
-    "CallResponse": {
+    "TalkResponse": {
       "type": "object",
       "required": [
         "mode",
@@ -934,7 +774,7 @@
       ],
       "properties": {
         "mode": {
-          "$ref": "#/$defs/CallMode"
+          "$ref": "#/$defs/TalkMode"
         },
         "text": {
           "type": "string",
@@ -972,112 +812,6 @@
             "integer",
             "null"
           ]
-        }
-      }
-    },
-    "LLMBookParagraph": {
-      "type": "object",
-      "required": [
-        "text",
-        "clip_ids"
-      ],
-      "properties": {
-        "text": {
-          "type": "string",
-          "maxLength": 600
-        },
-        "clip_ids": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "maxItems": 6
-        }
-      }
-    },
-    "LLMBookChapter": {
-      "type": "object",
-      "required": [
-        "title",
-        "period",
-        "paragraphs"
-      ],
-      "properties": {
-        "title": {
-          "type": "string",
-          "maxLength": 40
-        },
-        "period": {
-          "type": "string",
-          "maxLength": 30
-        },
-        "paragraphs": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/LLMBookParagraph"
-          },
-          "maxItems": 8
-        }
-      }
-    },
-    "LLMBookDraft": {
-      "type": "object",
-      "description": "LLM 이야기 정리 결과. clip_ids는 서버가 받은 목록 안에서만 인정한다.",
-      "required": [
-        "title",
-        "chapters"
-      ],
-      "properties": {
-        "title": {
-          "type": "string",
-          "maxLength": 40
-        },
-        "chapters": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/LLMBookChapter"
-          },
-          "maxItems": 8
-        }
-      }
-    },
-    "LLMCallReply": {
-      "type": "object",
-      "description": "기억 통화의 생성 답. source_clip_ids는 이 장의 클립 안에서만 인정하고, 근거가 없으면 refuse=true.",
-      "required": [
-        "refuse",
-        "text",
-        "source_clip_ids"
-      ],
-      "properties": {
-        "refuse": {
-          "type": "boolean"
-        },
-        "text": {
-          "type": "string",
-          "maxLength": 400
-        },
-        "source_clip_ids": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "maxItems": 4
-        }
-      }
-    },
-
-    "StoryRequest": {
-      "type": "object",
-      "required": [
-        "prompt"
-      ],
-      "properties": {
-        "prompt": {
-          "type": "string",
-          "minLength": 2,
-          "maxLength": 300,
-          "description": "이야기로 만들 기억 (예: 할머니랑 김치찌개 끓이던 기억)"
         }
       }
     },
@@ -1152,36 +886,6 @@
             "type": "string"
           },
           "maxItems": 4
-        }
-      }
-    },
-    "LLMStoryDraft": {
-      "type": "object",
-      "description": "가족이 적은 기억 하나로 쓰는 이야기 한 장. 관련 녹음이 없으면 found=false.",
-      "required": [
-        "found",
-        "title",
-        "period",
-        "paragraphs"
-      ],
-      "properties": {
-        "found": {
-          "type": "boolean"
-        },
-        "title": {
-          "type": "string",
-          "maxLength": 40
-        },
-        "period": {
-          "type": "string",
-          "maxLength": 30
-        },
-        "paragraphs": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/LLMBookParagraph"
-          },
-          "maxItems": 6
         }
       }
     }

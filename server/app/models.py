@@ -279,28 +279,6 @@ class Collection(Base):
     created_at: Mapped[dt.datetime] = mapped_column(TS, default=utcnow)
 
 
-class Book(Base):
-    """목소리가 들리는 기억책 (공간마다 하나). 장·문단은 chapters JSON 하나로 둔다.
-
-    chapters: [{id, title, period, paragraphs: [{id, text, clip_ids, grounded, edited}]}]
-    문단의 clip_ids는 근거가 된 원본 클립이다. 클립이 지워지면 읽을 때 빠진다.
-    """
-
-    __tablename__ = "books"
-
-    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
-    space_id: Mapped[str] = mapped_column(
-        ForeignKey("spaces.id", ondelete="CASCADE"), unique=True, index=True
-    )
-    title: Mapped[str] = mapped_column(String(80), default="")
-    status: Mapped[str] = mapped_column(String(10), default="draft")  # draft | approved
-    chapters: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, default=list)
-    generated_by: Mapped[str | None] = mapped_column(String(40), nullable=True)
-    created_at: Mapped[dt.datetime] = mapped_column(TS, default=utcnow)
-    updated_at: Mapped[dt.datetime] = mapped_column(TS, default=utcnow, onupdate=utcnow)
-    approved_at: Mapped[dt.datetime | None] = mapped_column(TS, nullable=True)
-
-
 class NoticeDismissal(Base):
     """앱 안 알림을 닫은 기록 (같은 알림을 다시 띄우지 않기 위해)."""
 
