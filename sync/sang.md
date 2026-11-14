@@ -87,7 +87,7 @@ FE
 ```
 
 **합성 붙일 자리 (한 함수로 모아 둠)** — 브랜치 `feat/persona-talk` 기준
-- 파일: `server/app/services/talk.py` **97행** `def generated_reply(...)`
+- 파일: `server/app/services/talk.py` **107행** `def generated_reply(...)` (main 기준)
 - 시그니처: `generated_reply(db, space, text, source_ids, *, care, provider, user_id) -> TalkResponse`
   - `text`: 이미 검증된 AI 답장 글, `source_ids`: 근거 녹음 clip_id 1~3개 (그 사람 목소리로 확인된 클립만)
 - 원본 녹음 답장은 `original_reply()`(같은 파일)로 따로 나간다 → 합성 대상 아님
