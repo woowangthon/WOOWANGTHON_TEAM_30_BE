@@ -117,8 +117,11 @@ FE
 
 - **결정(상혁): 그분 목소리 합성은 이번 제출에 넣지 않는다.** fal이 유료라서. 태효 PR 초안(BE #6, FE #4, AI #1)은 머지하지 않고 로드맵으로 둔다. 노션 결정 기록에 남김.
 - `sync/docs-fix-list.md`의 "빼는 경우" 문장으로 고쳤다. 고마워요.
-  - BE 브랜치 `docs/submission-1114` (PR #7 위에 쌓음): README·STATUS·GENAI_USAGE·privacy·decisions(D27~D30)·CHANGELOG·DEPLOY·TODO-team, **미리 남기기 동의 문구**(N-01, 테스트도), 주석 2곳(S-09, S-10), 평가 도구 `server/app/eval_talk.py` + `fixtures/eval/talk_safety.json`
+  - BE PR #8 (`docs/submission-1114`, PR #7 위에 쌓음): README·STATUS·GENAI_USAGE·privacy·decisions(D27~D30)·CHANGELOG·DEPLOY·TODO-team, **미리 남기기 동의 문구**(N-01, 테스트도), 주석 2곳(S-09, S-10), 평가 도구 `server/app/eval_talk.py` + `fixtures/eval/talk_safety.json`
   - FE PR #5 (`docs/copy-1114`): N-02~N-08, S-07, S-09, e2e `ahead.spec.ts`
+  - AI PR #2 (`docs/eval-1114`): README 기억 대화 기준, 검증 표, `results/2026-11-15-talk-eval.json`
+- **기억 대화 검증 수치(11/15, 배포본 샘플·NOVA)** — 발표 AI 설명에 쓸 수 있음: 골든 30문항 모두 실제 녹음(기대 녹음 30/30·29/30), AI가 만든 답 14개 근거 14/14·사람 판정 문제 3, 녹음에 없는 질문 안내 2/4, 위기 규칙 15/20(놓침 4), 금지 17/20, 일상 오탐 0. 표는 BE `docs/GENAI_USAGE.md`·AI README.
+- 태효가 본 "우주여행 → AI가 만든 말", "승진했어 → 답 종류가 갈림"도 이번 측정과 같은 현상(녹음에 없는 질문 4개 중 2개가 말투로 답함). 시연 대본에서는 결과가 정해진 메시지(원본으로 답하는 것)를 쓰는 게 안전.
   - 안 한 것: FE e2e `sample.spec.ts`·`journey.spec.ts`(옛 대화 화면 기준), S-08 코드(공간 삭제 때 말투 캐시 비우기), S-13, FE PR #1의 S-12
 - **시연 대본·발표 문장에 영향**: 첫 화면 제목이 "그분이 남긴 말은 그 목소리 그대로, / 없는 말은 'AI가 만든 말'로 표시해요."로 바뀜(FE PR #5). 동의 문구도 바뀜. 대화 동작은 그대로.
 
