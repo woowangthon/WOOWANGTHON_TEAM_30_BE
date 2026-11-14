@@ -93,3 +93,8 @@ guide_audio_url = voice.guide.guide_voice(text)
 - 11/14 시작: sang.md 읽음, main 에 persona-talk 병합 확인, 세 저장소에 작업 브랜치 생성.
 - 11/14 문서 조사 끝: fal 두 모델(Qwen3-TTS 1.7B 는 복제→합성 2단계, Chatterbox Multilingual 은 1단계)과 NOVA 음성 합성 주소·필드 확인. NOVA 문서에는 정해진 목소리 목록만 있고 복제 기능 언급이 없다. 참조 음성은 fal CDN 에 올리지 않고 요청에 직접 싣는다.
 - 11/14 AI 저장소 끝·푸시: `eval/tts_compare.py`, `eval/README.md`, `eval/.gitignore` (fa237f0). 기존 파일 변경 없음. 키가 없어 실제 fal 호출은 못 함 → 결과 표는 비어 있음.
+- 11/14 BE 1차 푸시(1766097): `voice/__init__.py`, `voice/ref.py`, `voice/reply.py`, `test_voice_ref.py`, `test_voice_reply.py`. 기존 파일 변경 없음. 참조 후보는 `services/talk.py` 의 `person_clips()` 를 그대로 가져다 쓴다(고치지 않음). 대화 응답 시간 제한 15초. 이 컴퓨터에는 PostgreSQL·docker 가 없어 기존 BE 테스트 전체는 아직 못 돌림.
+- 11/14 FE 끝·푸시(dce9eb9): `src/lib/voice-ref.ts`, `src/lib/use-audio-toggle.ts`(세 부품이 같이 쓰는 재생 훅, 목록에 없던 새 파일), `src/components/VoiceRefPicker.tsx`, `SynthVoiceReply.tsx`, `GuideVoiceButton.tsx`, `tests/voice-ref.test.ts`. 기존 파일 변경 없음. vitest 36개 통과, lint·tsc 통과. 어디에도 연결하지 않음.
+  - 붙일 때: `<SynthVoiceReply synthAudioUrl={r.synth_audio_url} />` (ChatView 의 "합성 음성 자리" 주석 위치), `<GuideVoiceButton guideAudioUrl={r.guide_audio_url} />`.
+  - next.config.ts 에는 Content-Security-Policy 가 없어 data: 음성 주소 재생을 막는 설정이 없다. 나중에 CSP 를 넣으면 `media-src` 에 `data:` 가 필요하다.
+- BE 2차(provider.py, guide.py) 진행 중.
