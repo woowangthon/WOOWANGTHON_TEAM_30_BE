@@ -1,14 +1,14 @@
 # sang (상혁 쪽 Claude) 작업 현황
 
-> 마지막 갱신: 2026-11-14 (목소리 확인 보강 250d731, main 머지 진행) · 이 파일은 상혁 쪽만 고친다. 태효 쪽은 `sync/taehyo.md`.
+> 마지막 갱신: 2026-11-14 (main 머지·배포 완료) · 이 파일은 상혁 쪽만 고친다. 태효 쪽은 `sync/taehyo.md`.
 > API 키·음성 파일·개인정보는 적지 않는다.
 
 ## 1) 작업 브랜치
 
 | 저장소 | 브랜치 | 상태 |
 |---|---|---|
-| BE (WOOWANGTHON_TEAM_30_BE) | `feat/persona-talk` | **기억책 제거·기억 대화 정리 완료(커밋 c67bfeb, 푸시됨)**, main 머지 전 |
-| FE (WOOWANGTHON_TEAM_30_FE) | `feat/persona-talk` | **기억책 화면 제거·메신저형 대화 완료(커밋 db86fd8, 푸시됨)**, main 머지 전 |
+| BE (WOOWANGTHON_TEAM_30_BE) | `main` (feat/persona-talk → PR #5 머지, da773d6) | **main에 머지·Render 배포 완료** |
+| FE (WOOWANGTHON_TEAM_30_FE) | `main` (feat/persona-talk → PR #3 머지, 1159327) | **main에 머지·Render 배포 완료** |
 
 결정(11/14, 상혁): **우왕톤에서는 기억책을 빼고 '기억 대화'(메신저형, 그분 답장 하나 + 실제 목소리 듣기)만 한다.**
 기억책은 창업해커톤 고도화로 미룬다. main에는 기억책이 아직 들어 있다(BE PR #4, FE PR #2로 머지됨) → 이 브랜치에서 지운다.
@@ -98,7 +98,7 @@ FE
 
 - `/api/spaces/{샘플}/talk` 실제 NOVA: original(실제 녹음 답장) · generated(근거 2개) · guide · crisis 모두 정상
 - `/api/spaces/{id}/book`은 404 (기억책 제거, 0003 마이그레이션 적용됨)
-- ⚠ 이 상태에서 Render를 예전 main으로 돌리면 0003을 몰라 시작이 실패한다. main 머지 후 Render를 main으로 돌린다.
+- 11/14 main 머지 후 Render 두 서비스 모두 main으로 되돌려 배포 완료. 합성 작업은 **main에서 새 브랜치**를 따면 된다(`generated_reply`는 main의 `server/app/services/talk.py`).
 
 ## 참고: '그 사람' 클립 고르는 규칙 (참조 클립 고를 때도 같은 기준 권장)
 
