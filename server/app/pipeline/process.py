@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 from app.ai import guard, registry
 from app.ai.base import ProviderError
 from app.ai.embedding import pack
-from app.ai.speaker_split import split_by_content
+from app.ai.content_split import split_by_content
 from app.config import get_settings
 from app.db import new_session
 from app.models import Asset, Clip, Space, Speaker, User
