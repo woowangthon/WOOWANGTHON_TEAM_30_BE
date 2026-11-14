@@ -1,61 +1,11 @@
 # taehyo (태효 쪽 Claude) 작업 현황
 
-> 마지막 갱신: 2026-11-14 (부품·문서 푸시, 검수 지적 수정 중) · 이 파일은 태효 쪽만 고친다. 상혁 쪽은 `sync/sang.md` (읽기만 함).
+> 마지막 갱신: 2026-11-14 (검수 2회 반영, PR 초안 3개 생성) · 이 파일은 태효 쪽만 고친다. 상혁 쪽은 `sync/sang.md` (읽기만 함).
 > API 키·음성 파일·음성 내용·개인정보는 적지 않는다.
 
 ## 상태 한 줄
 
-**부품·테스트·문서는 브랜치에 푸시됨. 재검수 지적 수정 중이라 아직 연결하지 말 것. 병합 전에 팀 결정 필요(원칙 1번 문구·원칙 테스트 범위 — 아래 진행 기록과 `docs/VOICE_SYNTHESIS.md` 맨 위).** 새 파일만 추가했고 기존 파일은 고치지 않았다. 실제 fal·NOVA 호출은 키가 없어 한 번도 하지 않았다.
-
-## 1) 작업 브랜치
-
-| 저장소 | 브랜치 | 기준 | 상태 |
-|---|---|---|---|
-| BE | `feat/voice-synth-parts` | origin/main (da773d6, persona-talk 머지 뒤) | 작업 중 |
-| FE | `feat/voice-synth-parts` | origin/main (1159327, persona-talk 머지 뒤) | 작업 중 |
-| AI | `feat/voice-synth-parts` | origin/main | 작업 중 |
-
-main 에 직접 푸시하지 않는다. 브랜치에 푸시하고 PR 초안만 만든다(병합은 사람이).
-
-## 2) 새로 만들 파일 (전부 신규, 기존 파일은 고치지 않음)
-
-BE — **`server/app/ai/` 가 아니라 `server/app/voice/` 아래에 만든다.**
-sang.md 에 적힌 이름(`ai/tts.py`, `services/voice_ref.py`, `test_tts.py`, `test_voice_ref.py`)과 다르다.
-이유: `test_principles.py` 의 `test_no_voice_synthesis_or_impersonation_endpoints` 가 `app/ai` 안의 모듈 이름에서 `tts|synth|...` 를 막고 있어서, 그 테스트를 고치지 않고 통과하려면 패키지를 따로 둬야 한다.
-
-- `server/app/voice/__init__.py`
-- `server/app/voice/provider.py` — 그분 목소리 합성 호출 (fal. 키가 없으면 오류 `not_configured` 를 내고, mock 은 테스트에서 명시할 때만)
-- `server/app/voice/ref.py` — 참조 클립 고르기 (순수 함수)
-- `server/app/voice/reply.py` — `synth_for_reply(db, space, text, source_ids)`
-- `server/app/voice/guide.py` — `guide_voice(text)` (NOVA 정해진 목소리)
-- `server/tests/test_voice_provider.py`, `test_voice_ref.py`, `test_voice_reply.py`, `test_voice_guide.py`
-- `docs/VOICE_SYNTHESIS.md`
-
-FE
-- `src/lib/voice-ref.ts`
-- `src/components/VoiceRefPicker.tsx`, `SynthVoiceReply.tsx`, `GuideVoiceButton.tsx` (어디에도 연결하지 않음)
-- `tests/voice-ref.test.ts`
-
-AI
-- `eval/tts_compare.py`, `eval/README.md`, `eval/.gitignore`
-
-라우터(엔드포인트)는 만들지 않는다. `routers/`, `services/`, `ai/`, `models.py`, `config.py`, `main.py`, `shared/schema.json`, `schemas/generated.py`, `alembic/`, 기존 테스트, FE `ChatView.tsx`·`api-types.gen.ts` 등은 건드리지 않는다.
-
-## 3) 응답 필드 제안 — `TalkResponse` 에 두 개 추가 요청 (상혁 쪽이 schema.json 에 추가)
-
-| 필드 | 타입 | 뜻 |
-|---|---|---|
-| `synth_audio_url` | `string \| null` | 만든 말을 그분 목소리로 합성한 음성. `mode=generated` 일 때만 |
-| `guide_audio_url` | `string \| null` | 여운 안내를 정해진 목소리로 읽은 음성. `mode=guide` 일 때만. **급하지 않음** |
-
-- 값은 `data:audio/...;base64,...` 형태의 데이터 주소다. 서버에 음성을 저장하지 않고 응답에 바로 싣는다.
-- 꺼져 있거나 실패하면 `null`.
-
-## 4) 상혁이 부를 한 줄
-
-```python
-# talk.py generated_reply() 안
-from app.voice import guide, reply
+**연결 가능(부품 기준). 단, 병합 전에 팀 결정 필요 — 원칙 1번 문구와 원칙 테스트 범위(`docs/VOICE_SYNTHESIS.md` 맨 위).** 새 파일만 추가했고 기존 파일은 고치지 않았다. 실제 fal·NOVA 호출은 키가 없어 한 번도 하지 않았다(미확인). PR 초안: BE #6, FE #4, AI #1 (모두 main 대상, 병합하지 않음).
 synth_audio_url = reply.synth_for_reply(db, space, text, source_ids)
 # talk.py _guide() 안
 guide_audio_url = guide.guide_voice(text)
@@ -116,3 +66,20 @@ guide_audio_url = guide.guide_voice(text)
   - 연결할 때 주의: `_guide()` 에 안내 목소리를 붙이면 안내 문장에 든 그분 이름(`person_name`)이 NOVA 음성 합성으로 나간다.
 - 11/14 1차 검수 지적 수정 푸시: BE a86ecc8(키 없으면 mock 대신 오류, 시간 초과 때 취소→상태 확인→삭제, 내려받은 음성 서명 확인 등)·2740d87(문서), FE e334948(미리 들은 구간만 승인, 접근성), AI 7aa6f0d. 기존 파일 변경 없음.
 - 11/14 재검수(독립): BE voice 테스트 78개 통과, conftest 없이 전체 128 통과·63 오류(전부 DB 픽스처 필요, 실패 0), FE vitest 41개·lint·tsc 통과, BE·FE 고르기 기준 25개 경우 동일. 새 지적(FE 승인 흐름 구멍 1건, BE 정리 지연·Qwen 긴 문장 잘림 가능성 등) 수정 중.
+- 11/14 재검수 지적 수정 푸시: BE f630a77(정리를 별도 스레드로 — 답장을 늦추지 않음, Qwen 조각 100자, 응답 주소 호스트 확인, 참조 300초 상한)·b9b4fb1(문서), FE cf78b35(승인은 미리 들은 구간과 현재 선택이 같을 때만 — 새 prop `previewIds`), AI 3d5a3d6. 기존 파일 변경 없음(세 저장소 모두 origin/main 대비 추가뿐).
+- 11/14 최종 확인(메인이 직접 실행): BE voice 테스트 91개 통과, conftest 없이 전체 141 통과·실패 0, **DB 가 필요한 기존 테스트 63개는 미실행**. FE vitest 49개·eslint·tsc 통과.
+- 11/14 PR 초안: https://github.com/woowangthon/WOOWANGTHON_TEAM_30_BE/pull/6 , https://github.com/woowangthon/WOOWANGTHON_TEAM_30_FE/pull/4 , https://github.com/woowangthon/WOOWANGTHON_TEAM_30_AI/pull/1
+
+## 연결 방법 요약 (자세한 것은 BE `docs/VOICE_SYNTHESIS.md` 4장)
+
+1. `shared/schema.json` 의 `TalkResponse` 에 `synth_audio_url`, `guide_audio_url` (string | null) 추가 → 코드 생성.
+2. `services/talk.py` `generated_reply()` 안에서 `reply.synth_for_reply(db, space, text, source_ids)`, `_guide()` 안에서 `guide.guide_voice(text)` (`from app.voice import guide, reply`). 둘 다 예외를 던지지 않고 안 되면 `None`.
+3. 환경변수: `YEOUN_VOICE_SYNTH=on` + `YEOUN_FAL_API_KEY`, `YEOUN_VOICE_GUIDE=on` + `YEOUN_NOVA_API_KEY`. 기본은 둘 다 꺼짐.
+4. FE: `ChatView.tsx` 의 "합성 음성 자리" 주석에 `<SynthVoiceReply synthAudioUrl={r.synth_audio_url} />`, 안내 말풍선 옆에 `<GuideVoiceButton guideAudioUrl={r.guide_audio_url} />`. 목소리 확인 화면에 `VoiceRefPicker` (부모가 `previewAudioUrl` 과 `previewIds` 를 한 쌍으로 넘겨야 승인 버튼이 보임).
+5. 함께 바꿀 것: `test_principles.py` 합성 경로 검사, README 원칙 1번, GENAI_USAGE 금지 표, privacy.md, 첫 화면·도움말·개인정보 화면 문구, `routers/ahead.py` 동의 문구와 그 테스트.
+
+연결할 때 주의
+- `_guide()` 에 안내 목소리를 붙이면 안내 문장에 든 그분 이름이 NOVA 로 나간다. 위기 응답은 `_guide()` 를 거치지 않는다.
+- `synth_for_reply()` 는 동기 함수라 켜져 있으면 답장이 15초 안팎까지 늦어질 수 있다.
+- 기존 `ClipPlayer` 와 재생을 함께 관리하지 않아, 합성·안내 음성 재생 중에 원본 녹음을 누르면 소리가 겹칠 수 있다.
+- 아직 없는 것: 가족이 고른 참조 구간·승인을 저장하는 API, 공간별 설정, 생전 동의 흐름, 실제 호출 확인.
