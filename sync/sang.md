@@ -1,6 +1,6 @@
 # sang (상혁 쪽 Claude) 작업 현황
 
-> 마지막 갱신: 2026-11-14 (BE 기억책 제거 완료) · 이 파일은 상혁 쪽만 고친다. 태효 쪽은 `sync/taehyo.md`.
+> 마지막 갱신: 2026-11-14 (BE·FE 기억책 제거 완료, 배포 확인 전) · 이 파일은 상혁 쪽만 고친다. 태효 쪽은 `sync/taehyo.md`.
 > API 키·음성 파일·개인정보는 적지 않는다.
 
 ## 1) 작업 브랜치
@@ -8,7 +8,7 @@
 | 저장소 | 브랜치 | 상태 |
 |---|---|---|
 | BE (WOOWANGTHON_TEAM_30_BE) | `feat/persona-talk` | **기억책 제거·기억 대화 정리 완료(커밋 c67bfeb, 푸시됨)**, main 머지 전 |
-| FE (WOOWANGTHON_TEAM_30_FE) | `feat/persona-talk` | 작업 중, main 머지 전 |
+| FE (WOOWANGTHON_TEAM_30_FE) | `feat/persona-talk` | **기억책 화면 제거·메신저형 대화 완료(커밋 db86fd8, 푸시됨)**, main 머지 전 |
 
 결정(11/14, 상혁): **우왕톤에서는 기억책을 빼고 '기억 대화'(메신저형, 그분 답장 하나 + 실제 목소리 듣기)만 한다.**
 기억책은 창업해커톤 고도화로 미룬다. main에는 기억책이 아직 들어 있다(BE PR #4, FE PR #2로 머지됨) → 이 브랜치에서 지운다.
@@ -34,7 +34,10 @@ FE
 
 ## 3) 지울 예정 (기억책 관련)
 
-BE는 **지움 완료** (c67bfeb). `0003_drop_books.py` 추가, `0002_books.py`는 그대로. FE는 다음 작업 단위.
+BE **지움 완료** (c67bfeb). `0003_drop_books.py` 추가, `0002_books.py`는 그대로.
+FE **지움 완료** (db86fd8).
+
+⚠ BE 브랜치에는 마이그레이션 0003이 있어서, 이 브랜치를 배포한 DB에 예전 main을 다시 배포하면 서버 시작이 실패한다. 배포 확인 → main 머지 → Render 브랜치를 main으로, 이 순서로만 한다.
 
 BE
 - `server/app/routers/book.py`
@@ -91,5 +94,6 @@ FE
 ## 태효에게 요청 / 안내
 
 - 합성 음성을 응답에 싣는 필드 이름·형식을 정해 주면 `TalkResponse`(shared/schema.json)에 상혁 쪽이 추가한다. 예: `synth_audio_url: string | null`. 정해지면 `sync/taehyo.md`에 적어 주세요.
-- FE에서 합성 음성 버튼은 `ChatView.tsx`의 generated 말풍선 안에 붙일 수 있게 자리를 비워 둔다(`SynthVoiceReply` 컴포넌트를 넣을 위치를 주석으로 표시 예정).
+- FE 합성 음성 자리: `src/components/ChatView.tsx`의 `Reply` 안 generated 말풍선, 주석 `합성 음성 자리: 태효 쪽 SynthVoiceReply 컴포넌트를 여기에 붙인다` 위치. 상혁 쪽은 `SynthVoiceReply.tsx`를 만들지 않는다.
+- `ChatView.tsx`는 상혁 쪽이 계속 고치는 파일이라, 붙일 때는 이 주석 한 줄만 바꾸는 식으로 해 주세요(충돌 줄이기).
 - 화면의 "AI가 만든 말" 표시와 근거 녹음 보기는 유지해야 한다(심사 기준·윤리 장치). 합성 음성도 같은 말풍선 안에 'AI 합성 음성'으로 표시해 주세요.
