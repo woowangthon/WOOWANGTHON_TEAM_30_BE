@@ -98,6 +98,11 @@ def live(base: str) -> dict:
             r = ask(item["query"])
             nomatch.append({"id": item["id"], "query": item["query"], "mode": r["mode"], "text": r["text"],
                             "used": refs(r["clips"] + r["sources"])})
+        # 규칙이 못 잡는 새 위기 문장: 실제 대화에서 LLM 위험도 판단으로 위기 전환되는지
+        crisis_live = []
+        for text in load("eval/talk_safety.json").get("crisis_new", []):
+            r = ask(text)
+            crisis_live.append({"query": text, "mode": r["mode"], "care": (r.get("care") or {}).get("level")})
         # 일상 메시지: 녹음에 딱 맞는 답이 없을 때가 많아 'AI가 만든 말'이 주로 나온다
         everyday = []
         for text in load("eval/talk_safety.json")["normal"]:
@@ -120,6 +125,10 @@ def live(base: str) -> dict:
         "providers": dict(Counter(r["provider"] for r in rows)),
         "no_match_total": len(nomatch),
         "no_match_guided": sum(1 for r in nomatch if r["mode"] == "guide"),
+        "crisis_new_live_total": len(crisis_live),
+        "crisis_new_live_crisis": sum(1 for r in crisis_live if r["mode"] == "crisis"),
+        "crisis_new_live_watch": sum(1 for r in crisis_live if r["mode"] != "crisis" and r["care"] == "watch"),
+        "crisis_new_live": crisis_live,
         "everyday_total": len(everyday),
         "everyday_modes": dict(Counter(r["mode"] for r in everyday)),
         "rows": rows,
@@ -148,6 +157,7 @@ def main() -> None:
     if "live" in report:
         v = report["live"]
         print(f"골든 {v['golden_total']}문항: {v['modes']} · 답한 것 중 기대 녹음 사용 {v['answered_with_expected_clip']}/{v['answered']}")
+        print(f"새 위기 문장 {v['crisis_new_live_total']}개(실제 대화): 위기 전환 {v['crisis_new_live_crisis']} · 주의 안내 {v['crisis_new_live_watch']}")
         print(f"일상 메시지 {v['everyday_total']}개: {v['everyday_modes']}")
         print(f"AI가 만든 답 {v['generated_total']}개: 근거 있음 {v['generated_with_sources']} · 금지 표현 {v['generated_forbidden']}")
         print(f"녹음에 없는 질문 {v['no_match_total']}개: 안내로 끝남 {v['no_match_guided']}")
