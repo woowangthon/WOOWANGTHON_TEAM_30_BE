@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from app.ai.speaker_split import split_by_content, to_sentences
+from app.ai.content_split import split_by_content, to_sentences
 from app.schemas import TranscriptSegment
 from app.services.talk import addressed_to_person
 

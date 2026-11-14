@@ -15,7 +15,7 @@ from typing import Any
 from app.ai.base import ProviderError
 from app.schemas import TranscriptSegment
 
-log = logging.getLogger("yeoun.speaker_split")
+log = logging.getLogger("yeoun.content_split")
 
 _SPLIT = re.compile(r"(?<=[.?!…])\s+")
 MAX_SENTENCES = 300
@@ -53,14 +53,14 @@ def split_by_content(segments: list[TranscriptSegment], llm: Any) -> tuple[list[
     try:
         raw = llm.split_speakers([s.text[:200] for s in sentences])
     except ProviderError as e:
-        log.warning("speaker_split_failed provider=%s code=%s", llm.name, e.code)
+        log.warning("content_split_failed provider=%s code=%s", llm.name, e.code)
         return segments, False
     labels = raw.get("labels") if isinstance(raw, dict) else None
     if not isinstance(labels, list) or len(labels) != len(sentences) or any(x not in ("A", "B") for x in labels):
-        log.warning("speaker_split_bad_output n=%d", len(sentences))
+        log.warning("content_split_bad_output n=%d", len(sentences))
         return segments, False
     if len(set(labels)) < 2:
         return segments, False  # 한 사람 녹음
     out = [s.model_copy(update={"speaker": "S1" if lab == "A" else "S2"}) for s, lab in zip(sentences, labels, strict=True)]
-    log.info("speaker_split sentences=%d a=%d b=%d", len(out), labels.count("A"), labels.count("B"))
+    log.info("content_split sentences=%d a=%d b=%d", len(out), labels.count("A"), labels.count("B"))
     return out, True

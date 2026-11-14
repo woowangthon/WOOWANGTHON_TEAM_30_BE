@@ -150,7 +150,8 @@ def test_guard_unit():
 
 
 def test_no_voice_synthesis_or_impersonation_endpoints(app):
-    bad = re.compile(r"tts|synth|clone|speak|persona|imperson|generate", re.I)
+    # speak(?!er): 화자(speaker) 고르기 주소(/speakers/{id})는 말하기·합성이 아니므로 제외
+    bad = re.compile(r"tts|synth|clone|speak(?!er)|persona|imperson|generate", re.I)
     paths = [getattr(r, "path", "") for r in app.routes]
     assert not [p for p in paths if bad.search(p)]
     import pkgutil
