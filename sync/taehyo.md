@@ -91,3 +91,5 @@ guide_audio_url = voice.guide.guide_voice(text)
 ## 진행 기록
 
 - 11/14 시작: sang.md 읽음, main 에 persona-talk 병합 확인, 세 저장소에 작업 브랜치 생성.
+- 11/14 문서 조사 끝: fal 두 모델(Qwen3-TTS 1.7B 는 복제→합성 2단계, Chatterbox Multilingual 은 1단계)과 NOVA 음성 합성 주소·필드 확인. NOVA 문서에는 정해진 목소리 목록만 있고 복제 기능 언급이 없다. 참조 음성은 fal CDN 에 올리지 않고 요청에 직접 싣는다.
+- 11/14 AI 저장소 끝·푸시: `eval/tts_compare.py`, `eval/README.md`, `eval/.gitignore` (fa237f0). 기존 파일 변경 없음. 키가 없어 실제 fal 호출은 못 함 → 결과 표는 비어 있음.
