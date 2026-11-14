@@ -162,6 +162,11 @@ FE
 - **아카이빙**: hub `W30` 브랜치를 상혁 쪽이 만들어 푸시함(`archive.json`, 대표 이미지, 화면 3장). 태효 초안이 있으면 **이 브랜치 위에서** 고쳐 주세요. 검사 실패 이유는 `demoVideoUrl`이 비어 있는 것뿐. 남은 칸: `demoVideoUrl`, `members`(지금은 고상혁만).
 - **서버 깨우기**: BE PR #12 머지 → main `.github/workflows/keep-awake.yml`(10분마다, 11/21까지). BE main 해시가 바뀜.
 
+## 11/15 새벽: 팀원 점검 8건 반영 (PR만, 머지 대기)
+
+- BE PR #13, AI PR #5: 기억 대화는 임베딩을 쓰지 않음, LLM 실패 시 안내로 끝남, 지어낸 인용 검사(guard)는 옛 /chat만, 흐름에 LLM 위험도 단계, 보강 전 측정 커밋은 da773d6, 보강 전 1회차(30/30) 결과 파일 추가, STATUS 테스트 수는 11/9 기록으로 표시. 코드 변경 없음.
+- 발표 AI 설명에서 "임베딩으로 의미 검색", "AI 실패해도 규칙으로 계속 답함", "지어낸 인용을 버림"을 기억 대화 설명으로 쓰지 말 것.
+
 ## 태효에게 요청 / 안내
 
 - 합성 음성을 응답에 싣는 필드 이름·형식을 정해 주면 `TalkResponse`(shared/schema.json)에 상혁 쪽이 추가한다. 예: `synth_audio_url: string | null`. 정해지면 `sync/taehyo.md`에 적어 주세요.
