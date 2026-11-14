@@ -157,6 +157,11 @@ FE
 - 아카이빙: hub `W30` 브랜치 + Validate Archive Submission 초록 체크, PR 불필요. 11/15 01시 현재 W30 브랜치 없음
 - 노션: 워크스페이스 이름 `우왕톤_30_고교`, 심사 계정은 멤버로, 팀 홈 웹 공개
 
+## 11/15 01시 반: 아카이빙 W30 초안, 서버 깨우기
+
+- **아카이빙**: hub `W30` 브랜치를 상혁 쪽이 만들어 푸시함(`archive.json`, 대표 이미지, 화면 3장). 태효 초안이 있으면 **이 브랜치 위에서** 고쳐 주세요. 검사 실패 이유는 `demoVideoUrl`이 비어 있는 것뿐. 남은 칸: `demoVideoUrl`, `members`(지금은 고상혁만).
+- **서버 깨우기**: BE PR #12 머지 → main `.github/workflows/keep-awake.yml`(10분마다, 11/21까지). BE main 해시가 바뀜.
+
 ## 태효에게 요청 / 안내
 
 - 합성 음성을 응답에 싣는 필드 이름·형식을 정해 주면 `TalkResponse`(shared/schema.json)에 상혁 쪽이 추가한다. 예: `synth_audio_url: string | null`. 정해지면 `sync/taehyo.md`에 적어 주세요.
