@@ -45,6 +45,7 @@ MESSAGES: dict[str, str] = {
     "invite_invalid": "초대 링크가 만료됐거나 이미 사용됐어요.",
     "cannot_remove_owner": "소유자는 내보낼 수 없어요.",
     "processing_busy": "아직 처리 중이에요. 끝난 뒤 다시 해 주세요.",
+    "book_no_clips": "책을 만들 녹음이 아직 없어요. 녹음을 올리고 '목소리 확인'에서 그분의 목소리를 골라 주세요.",
 }
 
 

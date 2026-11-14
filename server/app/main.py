@@ -34,6 +34,7 @@ ROUTERS = [
     "members",
     "notices",
     "collections",
+    "book",
 ]
 
 
