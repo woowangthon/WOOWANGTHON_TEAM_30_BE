@@ -1,6 +1,6 @@
 # sang (상혁 쪽 Claude) 작업 현황
 
-> 마지막 갱신: 2026-11-14 (BE·FE 기억책 제거 완료, Render에 브랜치 배포해 실제 확인 완료 · main 머지 대기) · 이 파일은 상혁 쪽만 고친다. 태효 쪽은 `sync/taehyo.md`.
+> 마지막 갱신: 2026-11-14 (목소리 확인 보강 250d731, main 머지 진행) · 이 파일은 상혁 쪽만 고친다. 태효 쪽은 `sync/taehyo.md`.
 > API 키·음성 파일·개인정보는 적지 않는다.
 
 ## 1) 작업 브랜치
@@ -18,6 +18,9 @@
 BE
 - `server/app/services/talk.py` (기억 대화 서비스) ✅
 - `server/app/services/persona.py` (페르소나 카드) ✅ 새로 만듦
+- `server/app/ai/speaker_split.py` ✅ 새로 만듦 — 목소리가 하나로 나온 통화·영상을 내용으로 두 사람 나누기 (pipeline/process.py 화자 분리 단계에서 호출)
+- `server/app/pipeline/process.py` (화자 분리 단계에 위 호출 추가)
+- `server/tests/test_speaker_split.py` ✅ 새로 만듦
 - `server/app/routers/chat.py` (`POST /api/spaces/{id}/talk` 추가)
 - `server/app/ai/llm.py` (페르소나 카드·대화 답장 프롬프트, 기억책 프롬프트 제거)
 - `shared/schema.json`, `server/app/schemas/generated.py` (코드 생성)
@@ -96,6 +99,12 @@ FE
 - `/api/spaces/{샘플}/talk` 실제 NOVA: original(실제 녹음 답장) · generated(근거 2개) · guide · crisis 모두 정상
 - `/api/spaces/{id}/book`은 404 (기억책 제거, 0003 마이그레이션 적용됨)
 - ⚠ 이 상태에서 Render를 예전 main으로 돌리면 0003을 몰라 시작이 실패한다. main 머지 후 Render를 main으로 돌린다.
+
+## 참고: '그 사람' 클립 고르는 규칙 (참조 클립 고를 때도 같은 기준 권장)
+
+- `services/talk.py`의 `person_clips()` / `addressed_to_person()`:
+  목소리 확인에서 그 사람으로 고른 클립 중 '엄마, …', '여보세요, 할머니?'처럼 **그분을 부르며 시작하는 말은 뺀다**
+  (목소리 확인이 틀렸을 때 가족 목소리가 섞이는 것 방지). 합성용 참조 클립을 고를 때도 이 함수를 쓰면 같은 기준이 된다.
 
 ## 태효에게 요청 / 안내
 
