@@ -716,6 +716,8 @@ class LLMTalkReply(BaseModel):
     use_clip_id: str = Field(description='원본 녹음 하나가 그대로 답이 되면 그 clip_id, 아니면 빈 문자열')
     text: str = Field(max_length=300)
     source_clip_ids: list[str] = Field(max_length=4)
+    kind: Literal['feeling', 'fact'] = Field(description='feeling: 안부·축하·위로·그리움에 마음으로 답함, fact: 그분의 경험·기억·사실·정보·방법·조언을 묻는 말에 답함')
+    risk: Literal['none', 'watch', 'high'] = Field(description='보낸 말(과 대화 기록)에 보이는 자살·자해 위험. 서버는 규칙보다 높일 때만 따른다')
 
 
 class LLMSpeakerSplit(BaseModel):

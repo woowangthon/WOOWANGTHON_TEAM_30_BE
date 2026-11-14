@@ -4,11 +4,12 @@
 그 사람처럼 답장 하나를 만든다.
 
 답장을 고르는 순서:
-    ① 위기 신호 → 그 사람 목소리를 멈추고 "잠깐 멈출게요…" + 상담 번호 (crisis)
+    ① 위기 신호(규칙) → 그 사람 목소리를 멈추고 "잠깐 멈출게요…" + 상담 번호 (crisis)
     ② 금지 주제(유언·돈·그 사람의 판단·의료·법률) → 여운 안내 (guide)
+    ①' 답장을 만드는 LLM이 함께 판단한 위험도가 규칙보다 높으면 그쪽을 따른다(낮추지는 못함)
     ③ 원본 녹음 하나가 그대로 답이 되면 → 그 녹음을 답장으로 (original, 자막은 DB 원문 그대로)
     ④ 아니면 → 페르소나와 근거 녹음으로 만든 답장 (generated, 'AI가 만든 말' + 근거)
-       근거가 없거나 거절이면 → 여운 안내 (guide)
+       근거가 없거나 거절이면, 또는 경험·사실·조언을 묻는 말인데 관련 녹음이 근거에 없으면 → 여운 안내 (guide)
 
 AI가 만든 답(generated)은 반드시 generated_reply() 한 곳을 거쳐 나간다.
 """
@@ -25,7 +26,7 @@ from sqlalchemy.orm import Session
 from app.ai import guard, registry
 from app.ai.base import ProviderError
 from app.ai.llm import MockLLM
-from app.care.crisis import care_notice, rule_risk
+from app.care.crisis import care_notice, combine, rule_risk
 from app.config import get_settings
 from app.models import Asset, Clip, Space, Speaker
 from app.schemas import CareNotice, TalkResponse, TalkTurn
@@ -38,6 +39,9 @@ from app.services.spaces import included_expr
 log = logging.getLogger("yeoun.talk")
 
 MEMORY_COUNT = 12
+# 검색 일치도가 이 값 이상인 녹음만 '이번 메시지와 관련된 녹음'으로 본다.
+# 샘플 공간 기준: 골든 질문의 최고 일치도는 0.33 이상, 녹음에 없는 질문은 0.1 이하.
+RELATED_MIN = 0.25
 CRISIS_TEXT = "잠깐 멈출게요. 지금 마음이 어떠세요?"
 FORBIDDEN_TEXT = (
     "이 이야기는 {person}께서 남기신 말로 대신할 수 없어서, 여운이 대신 답하지 않을게요. "
@@ -84,6 +88,31 @@ def clip_for_prompt(clip: Clip, asset: Asset) -> dict[str, Any]:
         "tags": clip.tags or [],
         "text": clip.text[:240],
     }
+
+
+def llm_risk(raw: dict[str, Any]) -> str | None:
+    r = raw.get("risk")
+    return r if r in ("none", "watch", "high") else None
+
+
+def decide_generated(
+    raw: dict[str, Any], allowed: set[str], related: set[str]
+) -> tuple[str, list[str]] | None:
+    """LLM이 만든 답을 내보낼지 정한다. 내보내면 (글, 근거 clip_id 1~3개), 아니면 None(여운 안내).
+
+    - 거절·빈 글·근거 없음·금지 표현이면 버린다.
+    - 그분의 경험·사실·정보·조언을 묻는 말에 답한 것(kind가 'feeling'이 아님)은
+      이번 메시지와 내용이 관련된 녹음(related)이 근거에 하나 이상 있어야 한다. 없으면 지어낸 답으로 보고 버린다.
+    - 관련 녹음을 근거 목록 앞에 둔다.
+    """
+    text = str(raw.get("text") or "").strip()[:300]
+    src = [i for i in dict.fromkeys(str(x) for x in (raw.get("source_clip_ids") or [])) if i in allowed][:3]
+    if raw.get("refuse") or not text or not src or FORBIDDEN.search(text):
+        return None
+    if raw.get("kind") != "feeling" and not (set(src) & related):
+        return None
+    src.sort(key=lambda i: i not in related)
+    return text, src
 
 
 def _guide(text: str, care: CareNotice | None, provider: str) -> TalkResponse:
@@ -170,6 +199,10 @@ def talk(
             picked.append(c.id)
     memories = [clip_for_prompt(*by_id[i]) for i in picked]
 
+    related = {h.clip_id for h in hits if h.confidence >= RELATED_MIN}
+    for m in memories:
+        m["related"] = m["clip_id"] in related
+
     llm, _ = registry.build("llm", consent=consent, is_sample=space.is_sample)
     if llm.name == "mock" or not getattr(llm, "talk_reply", None):
         # AI 없이: ③ 딱 맞는 원본만 들려준다
@@ -188,6 +221,13 @@ def talk(
     if not isinstance(raw, dict):
         return _guide(NO_ANSWER_TEXT.format(person=person), care, llm.name)
 
+    # ①' LLM 위험도: 규칙이 놓친 돌려 말한 위기 표현. 규칙보다 높일 때만 따른다(낮추지 못함)
+    level = combine(level, llm_risk(raw))
+    if level == "high":
+        log.info("talk space=%s mode=crisis by=llm", space.id)
+        return TalkResponse(mode="crisis", text=CRISIS_TEXT, clips=[], sources=[], care=care_notice("high"), provider=llm.name)
+    care = care_notice(level)
+
     allowed = set(picked)
     # ③ 원본 녹음이 그대로 답이 되는 경우
     use = str(raw.get("use_clip_id") or "").strip()
@@ -195,11 +235,11 @@ def talk(
         log.info("talk space=%s mode=original", space.id)
         return original_reply(db, space, by_id[use][0], care=care, provider=llm.name, user_id=user_id)
 
-    # ④ AI가 만든 답 (근거 없음·거절·금지 표현이면 안내)
-    text = str(raw.get("text") or "").strip()[:300]
-    src = [i for i in dict.fromkeys(str(x) for x in (raw.get("source_clip_ids") or [])) if i in allowed][:3]
-    if raw.get("refuse") or not text or not src or FORBIDDEN.search(text):
-        log.info("talk space=%s mode=guide refused=%s sources=%d", space.id, bool(raw.get("refuse")), len(src))
+    # ④ AI가 만든 답 (근거 없음·거절·금지 표현·관련 녹음 없는 사실 답이면 안내)
+    decided = decide_generated(raw, allowed, related)
+    if decided is None:
+        log.info("talk space=%s mode=guide refused=%s kind=%s", space.id, bool(raw.get("refuse")), raw.get("kind"))
         return _guide(NO_ANSWER_TEXT.format(person=person), care, llm.name)
-    log.info("talk space=%s mode=generated sources=%d", space.id, len(src))
+    text, src = decided
+    log.info("talk space=%s mode=generated kind=%s sources=%d", space.id, raw.get("kind"), len(src))
     return generated_reply(db, space, text, src, care=care, provider=llm.name, user_id=user_id)
