@@ -5,7 +5,7 @@
 
 ## 상태 한 줄
 
-**부품·테스트·문서는 브랜치에 푸시됨. 검수 지적 수정 중이라 아직 연결하지 말 것.** 새 파일만 추가했고 기존 파일은 고치지 않았다. 실제 fal·NOVA 호출은 키가 없어 한 번도 하지 않았다.
+**부품·테스트·문서는 브랜치에 푸시됨. 재검수 지적 수정 중이라 아직 연결하지 말 것. 병합 전에 팀 결정 필요(원칙 1번 문구·원칙 테스트 범위 — 아래 진행 기록과 `docs/VOICE_SYNTHESIS.md` 맨 위).** 새 파일만 추가했고 기존 파일은 고치지 않았다. 실제 fal·NOVA 호출은 키가 없어 한 번도 하지 않았다.
 
 ## 1) 작업 브랜치
 
@@ -24,7 +24,7 @@ sang.md 에 적힌 이름(`ai/tts.py`, `services/voice_ref.py`, `test_tts.py`, `
 이유: `test_principles.py` 의 `test_no_voice_synthesis_or_impersonation_endpoints` 가 `app/ai` 안의 모듈 이름에서 `tts|synth|...` 를 막고 있어서, 그 테스트를 고치지 않고 통과하려면 패키지를 따로 둬야 한다.
 
 - `server/app/voice/__init__.py`
-- `server/app/voice/provider.py` — 그분 목소리 합성 호출 (fal, 키 없으면 mock)
+- `server/app/voice/provider.py` — 그분 목소리 합성 호출 (fal. 키가 없으면 오류 `not_configured` 를 내고, mock 은 테스트에서 명시할 때만)
 - `server/app/voice/ref.py` — 참조 클립 고르기 (순수 함수)
 - `server/app/voice/reply.py` — `synth_for_reply(db, space, text, source_ids)`
 - `server/app/voice/guide.py` — `guide_voice(text)` (NOVA 정해진 목소리)
@@ -55,9 +55,10 @@ AI
 
 ```python
 # talk.py generated_reply() 안
-synth_audio_url = voice.reply.synth_for_reply(db, space, text, source_ids)
+from app.voice import guide, reply
+synth_audio_url = reply.synth_for_reply(db, space, text, source_ids)
 # talk.py _guide() 안
-guide_audio_url = voice.guide.guide_voice(text)
+guide_audio_url = guide.guide_voice(text)
 ```
 
 두 함수 모두 **절대 예외를 던지지 않고**, 안 되면 `None` 을 돌려준다. **지금은 연결하지 않는다.**
@@ -113,3 +114,5 @@ guide_audio_url = voice.guide.guide_voice(text)
 - 11/14 검수(독립) 결과: 기존 파일 변경 없음, 테스트 실패 없음(BE 117 통과·DB 필요한 63개 미실행, voice 67 통과, FE 36 통과·lint·tsc 통과), BE·FE 고르기 기준 14개 경우 동일. 중간 4건·낮음 12건 지적 → 수정 중.
   - 팀 결정이 필요한 지적: 이 브랜치가 병합되면 README 원칙 1번·GENAI_USAGE 의 "합성 어댑터 자체가 없음"이 사실과 달라진다(연결하지 않아도 `app/voice` 에 어댑터가 생김). 병합 전에 원칙 문구 수정과 원칙 테스트 범위를 팀이 정해야 한다.
   - 연결할 때 주의: `_guide()` 에 안내 목소리를 붙이면 안내 문장에 든 그분 이름(`person_name`)이 NOVA 음성 합성으로 나간다.
+- 11/14 1차 검수 지적 수정 푸시: BE a86ecc8(키 없으면 mock 대신 오류, 시간 초과 때 취소→상태 확인→삭제, 내려받은 음성 서명 확인 등)·2740d87(문서), FE e334948(미리 들은 구간만 승인, 접근성), AI 7aa6f0d. 기존 파일 변경 없음.
+- 11/14 재검수(독립): BE voice 테스트 78개 통과, conftest 없이 전체 128 통과·63 오류(전부 DB 픽스처 필요, 실패 0), FE vitest 41개·lint·tsc 통과, BE·FE 고르기 기준 25개 경우 동일. 새 지적(FE 승인 흐름 구멍 1건, BE 정리 지연·Qwen 긴 문장 잘림 가능성 등) 수정 중.
