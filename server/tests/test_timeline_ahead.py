@@ -50,7 +50,8 @@ def test_recording_link_full_flow(app, db, tmp_path):
     rec = ApiClient(app)  # 로그인 없음
     session = rec.get(f"/api/record/{token}").json()
     assert session["sender_name"] == "지은"
-    assert "새 말이나 새 음성을 만들지 않아요" in session["consent_text"]
+    assert "새 음성을 만들지 않아요" in session["consent_text"]
+    assert "AI가 만든 말" in session["consent_text"]
     wav = _tone(tmp_path)
     with wav.open("rb") as f:
         r = rec.post(

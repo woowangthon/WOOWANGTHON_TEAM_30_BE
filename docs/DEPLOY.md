@@ -6,7 +6,7 @@ AI 우왕톤 팀 30의 BE 저장소(`woowangthon/WOOWANGTHON_TEAM_30_BE`)를 Ren
 
 | 이름 | 종류 | 하는 일 |
 |---|---|---|
-| Neon `yeoun` | PostgreSQL (Neon 무료) | 계정·자막·검색 색인, 그리고 암호화된 파일(Render 무료 등급은 디스크가 없어서). Render 밖에서 따로 만든다 |
+| Neon `yeoun-team30` | PostgreSQL (Neon 무료) | 계정·자막·검색 색인, 그리고 암호화된 파일(Render 무료 등급은 디스크가 없어서). Render 밖에서 따로 만든다 |
 | `yeoun-team30-api` | Web Service (Docker) | FastAPI 서버 + ffmpeg + 실행되는 AI 코드. 올린 파일 처리도 이 안에서 함 |
 | (FE 저장소) | Web Service (Node) 또는 Vercel | Next.js 화면. 브라우저의 `/api` 요청을 `yeoun-team30-api`로 넘김 |
 
@@ -23,7 +23,7 @@ AI 우왕톤 팀 30의 BE 저장소(`woowangthon/WOOWANGTHON_TEAM_30_BE`)를 Ren
 | API에 넣은 값 | 아래 1·2단계 값 전부 + `YEOUN_PUBLIC_WEB_URL=https://yeoun-team30-web.onrender.com` (비밀 값은 Render Environment에만 있음) |
 | 화면에 넣은 값 | `YEOUN_API_ORIGIN=https://yeoun-team30-api.onrender.com`, `NODE_VERSION=22`, `NEXT_TELEMETRY_DISABLED=1` |
 | 확인 | `/api/health` ok·db true, `/api/config` staging·샘플 공간 있음, 화면의 샘플 대화에서 클립 카드가 나옴 |
-| 남은 일 | AI 키(`YEOUN_ANTHROPIC_API_KEY`, `YEOUN_OPENAI_API_KEY`), 마스터 키 백업 |
+| 남은 일 | 마스터 키 백업. AI 공급자는 NOVA 키(`YEOUN_NOVA_API_KEY`)로 연결됨(11/14 확인) |
 
 아래는 처음부터 다시 만들 때의 순서예요.
 
@@ -74,7 +74,7 @@ AI 우왕톤 팀 30의 BE 저장소(`woowangthon/WOOWANGTHON_TEAM_30_BE`)를 Ren
 1. 서비스 위쪽 주소(예: `https://yeoun-team30-api.onrender.com`. 이름이 겹치면 뒤에 글자가 붙어요)를 복사해 둬요.
 2. `<주소>/api/health` → `{"ok":true,"version":"0.1.0","db":true}`
 3. `<주소>/api/config` → `"env":"staging"`, `"sample_space_id"`가 `null`이 아니면 샘플까지 준비된 거예요.
-4. 설정 → 외부 서비스(또는 대화 응답의 `picker`)에서 mock이 아니라 실제 공급자가 보이면 AI 키도 연결된 거예요.
+4. 설정 → 외부 서비스(또는 기억 대화 응답의 `provider`)에서 mock이 아니라 실제 공급자가 보이면 AI 키도 연결된 거예요.
 
 ## 4. FE와 잇기 (FE 저장소에서)
 
@@ -93,8 +93,8 @@ FE 주소를 열고 차례로 해 보세요.
 
 - [ ] 첫 화면이 뜬다. (처음에는 "서버를 깨우는 중이에요" 띠가 1분쯤 보일 수 있어요)
 - [ ] **가입 없이 샘플 공간 체험하기** → "[샘플] 김순자 할머니" 공간이 보인다.
-- [ ] 샘플에서 "할머니 김치찌개 어떻게 끓였어?" → 김치찌개 이야기 클립이 보인다.
-- [ ] "비트코인 사도 될까?"에는 "딱 맞는 녹음은 없어요"가 나온다.
+- [ ] 샘플에서 "할머니 김치찌개 어떻게 끓였어?" → 그 녹음이 '실제 목소리' 말풍선으로 나온다(AI 응답이라 'AI가 만든 말'로 나올 수도 있음).
+- [ ] "비트코인 사도 될까?"에는 "말을 지어내지 않을게요" 안내가 나온다.
 - [ ] 초대 코드 없이 가입하면 안내가 나오고, 코드를 넣으면 가입된다.
 - [ ] 공간을 만들고 짧은 녹음(m4a 등)을 올리면 처리 단계가 하나씩 지나 "준비 완료"가 된다.
 - [ ] 대화가 되고, 설정 → 외부 서비스에 지금 쓰는 공급자가 보인다.
@@ -137,7 +137,10 @@ FE 주소를 열고 차례로 해 보세요.
 
 R2(실사용 저장소)를 쓸 때 추가: `YEOUN_STORAGE=s3`, `YEOUN_S3_BUCKET`, `YEOUN_S3_ENDPOINT_URL=https://<account-id>.r2.cloudflarestorage.com`, `YEOUN_S3_REGION=auto`, `YEOUN_S3_ACCESS_KEY_ID`, `YEOUN_S3_SECRET_ACCESS_KEY`. 저장소를 바꿔도 이미 올린 파일은 옮겨지지 않아요(새로 올린 것부터 적용).
 
----|---|---|
+### yeoun-team30-web (FE 저장소)
+
+| 변수 | 값 | 설명 |
+|---|---|---|
 | `YEOUN_API_ORIGIN` | `https://<api 주소>` | 필수. 바꾸면 웹을 다시 배포 |
 | `NODE_VERSION` | `22` | |
 
