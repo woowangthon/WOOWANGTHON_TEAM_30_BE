@@ -106,3 +106,7 @@ guide_audio_url = voice.guide.guide_voice(text)
   - FE: vitest 36개 통과, eslint·tsc 통과.
   - 실제 fal·NOVA 호출은 키가 없어 한 번도 하지 않음(미확인).
 - 문서(`docs/VOICE_SYNTHESIS.md`) 작성 중.
+- 11/14 문서 푸시(6548a17): `docs/VOICE_SYNTHESIS.md` — 설계 요약, fal 보관·삭제 설정, 연결 방법, 함께 바꿀 문장 초안, 아직 없는 것. 붙일 때 import 는 `from app.voice import guide, reply`.
+  - 알아 둘 점: 위기 응답(mode=crisis)은 `_guide()` 를 거치지 않아서 `_guide()` 에 안내 목소리를 붙여도 위기 안내에는 붙지 않는다. `synth_for_reply()` 는 동기 함수라 켜져 있으면 답장이 최대 15초 늦어질 수 있다.
+  - "새 말이나 새 음성을 만들지 않아요" 류 문구가 `routers/ahead.py`, `tests/test_timeline_ahead.py`, FE `help/page.tsx`, `privacy/page.tsx` 에도 있다(바꿀 문장 초안은 문서 5장).
+- 검수 진행 중.
