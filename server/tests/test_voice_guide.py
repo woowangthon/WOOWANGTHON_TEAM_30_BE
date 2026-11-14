@@ -57,13 +57,12 @@ def test_pcm_is_wrapped_as_wav(nova):
     assert c["timeout"] == G.GUIDE_TIMEOUT_SEC
 
 
-def test_riff_wav_response_is_passed_through(nova):
-    """문서에 없는 방어 분기: 이미 RIFF/WAVE 서명이 붙은 WAV 는 다시 감싸지 않는다."""
+def test_riff_body_without_pcm_content_type_returns_none(nova):
+    """문서에 없는 분기는 두지 않는다: RIFF WAV 본문이어도 Content-Type 이 audio/pcm 이 아니면 None."""
     body = G.pcm_to_wav(PCM)
-    for ctype in ("audio/wav", "audio/pcm", None):
+    for ctype in ("audio/wav", "text/html", None):
         nova(httpx.Response(200, content=body, headers={"content-type": ctype} if ctype else {}))
-        head, data = decode(G.guide_voice("안내"))
-        assert head == "data:audio/wav;base64" and data == body
+        assert G.guide_voice("안내") is None, ctype
 
 
 def test_content_types_not_in_docs_return_none(nova):

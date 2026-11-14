@@ -9,6 +9,7 @@ from __future__ import annotations
 import io
 import json
 import logging
+import threading
 import time
 import wave
 
@@ -153,10 +154,13 @@ def fal(monkeypatch):
         monkeypatch.setattr(P.httpx, "request", f)
         return f
 
-    return install
+    yield install
+    # 뒤에서 도는 정리가 가짜 HTTP 를 되돌리기 전에 끝나야 한다(실제 네트워크로 새지 않게)
+    assert P.wait_for_cleanups(5)
 
 
 def deleted_ids(f: FakeFal) -> list[str]:
+    assert P.wait_for_cleanups(5)  # 정리는 뒤의 스레드에서 돈다
     return [c["url"].split("/requests/")[1].split("/")[0] for c in f.of("DELETE", "api.fal.ai")]
 
 
@@ -237,6 +241,7 @@ def test_qwen_two_step_bodies_headers_and_cleanup(fal):
         "밥은 먹었니?", REF, "참조 자막", "qwen3-tts", ref_seconds=11, ref_mime="audio/mpeg", timeout=30
     )
     assert mime == "audio/wav" and audio.startswith(b"RIFF") and secs >= 0
+    assert P.wait_for_cleanups(5)
 
     posts = f.of("POST")
     assert [c["url"] for c in posts] == [
@@ -286,11 +291,11 @@ def test_qwen_without_ref_text_omits_reference_text(fal):
 
 def test_long_text_makes_one_request_per_chunk_and_joins_wav(fal):
     f = fal(audio=[wav(0.2)])
-    text = ("가" * 200 + ". ") * 3
+    text = ("가" * 89 + ". ") * 3  # 90자 문장 3개 → Qwen 조각 상한 100자라 조각 3개
     audio, mime, _ = P.synthesize(text, REF, "", "qwen3-tts", ref_seconds=5)
     tts_posts = f.of("POST", "text-to-speech")
     assert len(tts_posts) == 3
-    assert all(len(c["json"]["text"]) <= 300 for c in tts_posts)
+    assert all(len(c["json"]["text"]) <= P.QWEN_MAX_CHUNK_CHARS for c in tts_posts)
     with wave.open(io.BytesIO(audio), "rb") as w:
         assert w.getnframes() == 3 * int(24000 * 0.2)
         assert (w.getframerate(), w.getnchannels(), w.getsampwidth()) == (24000, 1, 2)
@@ -360,6 +365,7 @@ def test_overall_timeout_cancels_and_deletes(fal, monkeypatch):
         P.synthesize("응", REF, "", "chatterbox", ref_seconds=5, timeout=0.2)
     assert e.value.code == "timeout"
     assert time.monotonic() - t0 < 3
+    assert P.wait_for_cleanups(5)
     assert len(f.of("PUT")) == 1 and f.of("PUT")[0]["url"].endswith("/cancel")  # 끝나지 않은 요청 취소
     # 순서: 취소 → 상태 확인(끝남) → 삭제
     seq = [(c["method"], c["url"].rsplit("/", 1)[-1]) for c in f.calls]
@@ -374,6 +380,7 @@ def test_cancelled_request_never_finishes_logs_not_deleted(fal, caplog):
     with caplog.at_level(logging.WARNING, logger="yeoun.voice.provider"):
         with pytest.raises(ProviderError) as e:
             P.synthesize("응", REF, "", "chatterbox", ref_seconds=5, timeout=0.2)
+        assert P.wait_for_cleanups(5)
     assert e.value.code == "timeout"
     assert len(f.of("PUT")) == 1
     assert len(f.of("GET", "/status")) >= 2  # 취소 뒤에도 상태를 확인했다
@@ -393,8 +400,156 @@ def test_delete_failure_does_not_raise(fal, caplog):
     fal(delete_status=500)
     with caplog.at_level(logging.WARNING, logger="yeoun.voice.provider"):
         audio, mime, _ = P.synthesize("응", REF, "", "chatterbox", ref_seconds=5)
+        assert P.wait_for_cleanups(5)
     assert audio
     assert "fal_payload_not_deleted status=500 finished=yes" in caplog.text
+
+
+# --- 정리는 결과를 돌려준 뒤 뒤에서 ----------------------------------------------------
+
+
+class SlowDelete:
+    """삭제·취소·정리 상태 확인만 느린 FakeFal 감싸기."""
+
+    def __init__(self, fake: FakeFal, delay: float, exc: BaseException | None = None):
+        self.fake, self.delay, self.exc = fake, delay, exc
+        self.done = threading.Event()
+
+    def __call__(self, method, url, **kw):
+        if method in ("DELETE", "PUT"):
+            time.sleep(self.delay)
+            if self.exc is not None:
+                raise self.exc
+        r = self.fake(method, url, **kw)
+        if method == "DELETE":
+            self.done.set()
+        return r
+
+
+def test_slow_delete_does_not_delay_result(fal, monkeypatch):
+    f = fal()
+    slow = SlowDelete(f, delay=1.0)
+    monkeypatch.setattr(P.httpx, "request", slow)
+    t0 = time.monotonic()
+    audio, mime, secs = P.synthesize("응", REF, "", "chatterbox", ref_seconds=5, timeout=0.8)
+    assert audio and time.monotonic() - t0 < 0.8  # 삭제(1초)를 기다리지 않고 제한(0.8초) 안에 돌아옴
+    assert not slow.done.is_set()
+    assert P.wait_for_cleanups(5)  # 정리 스레드 join
+    assert slow.done.is_set()
+    assert deleted_ids(f) == ["req-1"]
+
+
+def test_early_failure_returns_without_waiting_for_cleanup(fal, monkeypatch):
+    f = fal(status_error="validation_error", cancel_completes=False)
+    monkeypatch.setattr(P, "CLEANUP_TIMEOUT_SEC", 2.0)  # 정리 상태 확인이 2초 걸려도
+    t0 = time.monotonic()
+    with pytest.raises(ProviderError):
+        P.synthesize("응", REF, "", "chatterbox", ref_seconds=5)
+    assert time.monotonic() - t0 < 0.5  # 호출자는 바로 오류를 받는다
+    assert P.wait_for_cleanups(5)
+    assert deleted_ids(f) == ["req-1"]
+
+
+def test_wait_cleanup_true_cleans_before_returning(fal, monkeypatch):
+    f = fal()
+    slow = SlowDelete(f, delay=0.2)
+    monkeypatch.setattr(P.httpx, "request", slow)
+    P.synthesize("응", REF, "", "chatterbox", ref_seconds=5, wait_cleanup=True)
+    assert slow.done.is_set()  # 돌려받을 때 이미 삭제가 끝났다
+    assert [c["method"] for c in f.calls][-1] == "DELETE"
+
+
+def test_cleanup_exceptions_do_not_escape(fal, monkeypatch, caplog):
+    f = fal(status_seq=["IN_PROGRESS"] * 10_000)
+    for exc in (RuntimeError("x"), KeyboardInterrupt(), SystemExit(1)):
+        slow = SlowDelete(f, delay=0.0, exc=exc)
+        monkeypatch.setattr(P.httpx, "request", slow)
+        with caplog.at_level(logging.WARNING, logger="yeoun.voice.provider"):
+            with pytest.raises(ProviderError):
+                P.synthesize("응", REF, "", "chatterbox", ref_seconds=5, timeout=0.05)
+            assert P.wait_for_cleanups(5)
+        # 동기 정리에서도 새지 않는다
+        with pytest.raises(ProviderError):
+            P.synthesize("응", REF, "", "chatterbox", ref_seconds=5, timeout=0.05, wait_cleanup=True)
+
+
+def test_cleanup_crash_is_logged_not_raised(fal, monkeypatch, caplog):
+    fal()
+
+    def boom(self):
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(P._FalJob, "cleanup", boom)
+    with caplog.at_level(logging.WARNING, logger="yeoun.voice.provider"):
+        audio, _, _ = P.synthesize("응", REF, "", "chatterbox", ref_seconds=5)
+        assert P.wait_for_cleanups(5)
+        P.synthesize("응", REF, "", "chatterbox", ref_seconds=5, wait_cleanup=True)
+    assert audio
+    assert caplog.text.count("fal_cleanup_crashed error=KeyboardInterrupt") == 2
+
+
+# --- 응답 주소의 호스트 ---------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "bad",
+    [
+        "https://evil.example/requests/req-1/status",
+        "http://queue.fal.run/requests/req-1/status",
+        "https://queue.fal.run.evil.example/requests/req-1/status",
+        "https://user@queue.fal.run/requests/req-1/status",
+        "https://queue.fal.run:8443/requests/req-1/status",
+    ],
+)
+def test_queue_urls_must_be_queue_host(fal, monkeypatch, bad):
+    f = fal()
+
+    def wrapped(method, url, **kw):
+        r = f(method, url, **kw)
+        if method == "POST" and url.startswith(P.FAL_QUEUE_BASE):
+            data = r.json()
+            data["status_url"] = bad
+            data["cancel_url"] = bad.replace("/status", "/cancel")
+            return httpx.Response(200, json=data)
+        return r
+
+    monkeypatch.setattr(P.httpx, "request", wrapped)
+    with pytest.raises(ProviderError) as e:
+        P.synthesize("응", REF, "", "chatterbox", ref_seconds=5)
+    assert e.value.code == "bad_output"
+    assert P.wait_for_cleanups(5)
+    hosts = {c["url"].split("/")[2] for c in f.calls}
+    assert hosts <= {"queue.fal.run", "api.fal.ai"}  # 키가 다른 호스트로 나가지 않았다
+    assert not any(c["url"] == bad or c["url"].startswith(bad.split("/requests")[0] + "/") for c in f.calls)
+    assert deleted_ids(f) == ["req-1"]  # 삭제는 상수 주소로 시도
+
+
+# --- 참조 길이 상한 ------------------------------------------------------------------
+
+
+def test_reference_over_300s_is_rejected(fal):
+    f = fal()
+    for model in ("qwen3-tts", "chatterbox"):
+        with pytest.raises(ProviderError) as e:
+            P.synthesize("응", REF, "", model, ref_seconds=300.1)
+        assert e.value.code == "bad_input"
+    assert f.calls == []
+    P.synthesize("응", REF, "", "chatterbox", ref_seconds=300)  # 300초까지는 된다
+    assert f.of("POST")
+
+
+def test_qwen_chunks_are_at_most_100_chars(fal):
+    f = fal()
+    P.synthesize(("나" * 60 + ". ") * 4, REF, "", "qwen3-tts", ref_seconds=5)
+    texts = [c["json"]["text"] for c in f.of("POST", "text-to-speech")]
+    assert len(texts) == 4 and all(len(t) <= 100 for t in texts)
+    assert P.QWEN_MAX_CHUNK_CHARS == 100 and P.MAX_CHUNK_CHARS == 300
+
+
+def test_split_text_does_not_send_punctuation_only_chunks():
+    chunks = P.split_text("가" * 200 + ".", 100)
+    assert all(any(ch.isalnum() for ch in c) for c in chunks)
+    assert "".join(chunks).rstrip(".") == "가" * 200  # 소리 나는 글자는 빠지지 않는다
 
 
 # --- 내려받은 음성 형식 교차 확인 ----------------------------------------------------

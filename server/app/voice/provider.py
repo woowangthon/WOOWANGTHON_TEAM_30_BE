@@ -1,7 +1,8 @@
 """그분 목소리 합성 공급자: fal(실제) / mock(명시적으로 고를 때만, 테스트·개발용).
 
-synthesize(text, ref_audio, ref_text, model, *, ref_seconds, ref_mime, timeout, provider="fal")
-    -> (audio, mime, 걸린 초)
+synthesize(text, ref_audio, ref_text, model, *, ref_seconds, ref_mime, timeout, provider="fal",
+           wait_cleanup=False) -> (audio, mime, 걸린 초)
+wait_for_cleanups(timeout=None) -> bool   # 뒤에서 도는 정리(취소·삭제)가 모두 끝날 때까지 기다린다
 
 - provider="fal"(기본): 키(YEOUN_FAL_API_KEY)가 없으면 ProviderError("not_configured"). 무음으로 대신하지 않는다.
 - provider="mock": 네트워크 없이 짧은 무음 WAV. 명시적으로 고른 경우에만 쓴다.
@@ -11,16 +12,24 @@ synthesize(text, ref_audio, ref_text, model, *, ref_seconds, ref_mime, timeout, 
     "qwen3-tts"  : Qwen3-TTS 1.7B. 복제(clone-voice) → 합성(text-to-speech) 2단계
     "chatterbox" : Chatterbox Multilingual. 참조 음성 주소를 voice 로 넣는 1단계
 - 참조 음성이 3초 미만이거나 길이를 알 수 없으면 호출하지 않고 ProviderError("ref_too_short") 로 거절한다.
-- 긴 문장은 문장 단위로 묶어 300자 이하 조각으로 나눠 요청하고, 결과를 이어 붙인다.
+  300초를 넘으면 호출하지 않고 ProviderError("bad_input") (MAX_REF_SEC).
+- 긴 문장은 문장 단위로 묶어 조각(Chatterbox 300자, Qwen 100자 이하)으로 나눠 요청하고, 결과를 이어 붙인다.
 - 호출은 큐 방식이다: 제출 → 응답의 status_url 폴링 → response_url 결과 → audio.url 내려받기 → 삭제 API.
   (삭제 API 에 필요한 request_id 는 큐 제출 응답에서 얻는다.)
 - 개인정보 헤더:
-    · 제출·상태 확인·결과 요청: Authorization, X-Fal-Store-IO: 0, X-Fal-Object-Lifecycle-Preference,
-      X-Fal-Request-Start-Timeout
-    · 취소·삭제 요청: Authorization, X-Fal-Store-IO: 0 (보관 기간·시작 대기 헤더는 넣지 않는다)
+    · 제출, 합성 중 상태 폴링, 결과 요청: Authorization, X-Fal-Store-IO: 0, X-Fal-Object-Lifecycle-Preference,
+      X-Fal-Request-Start-Timeout (4개)
+    · 정리 단계의 취소·상태 확인·삭제 요청: Authorization, X-Fal-Store-IO: 0 (2개. 보관 기간·시작 대기 헤더 없음)
     · 결과 파일(CDN) 내려받기: 헤더 없음(키를 보내지 않는다)
   참조 음성은 fal CDN 에 올리지 않고 data 주소로 요청 본문에 직접 싣는다.
-- 정리: 끝나면(실패·시간 초과 포함) 생긴 request_id 마다 결과 파일 삭제 API 를 부른다.
+- 키를 붙이는 주소: 제출 주소(FAL_QUEUE_BASE), 삭제 주소(FAL_DELETE_URL)는 상수다. fal 응답이 준
+  status_url·response_url·cancel_url 은 https://queue.fal.run 주소일 때만 쓰고, 아니면 bad_output 으로 끝낸다
+  (키가 다른 호스트로 나가지 않게).
+- 정리: 결과(또는 오류)를 먼저 호출자에게 돌려주고, 정리는 그 뒤 별도 데몬 스레드에서 돈다
+  (wait_cleanup=True 면 돌려주기 전에 같은 스레드에서 끝까지 정리한다. 평가·미리 듣기용).
+  정리 스레드 안의 모든 예외(BaseException 포함)는 삼키고 코드만 로그에 남긴다. 데몬 스레드라 서버 프로세스가
+  끝나면 정리가 끊길 수 있다 → 그 경우도 보관 기간 헤더에만 의존한다.
+  생긴 request_id 마다 결과 파일 삭제 API 를 부른다.
   끝나지 않은 요청은 먼저 취소(cancel_url)하고, 정리 한도(CLEANUP_TIMEOUT_SEC) 안에서 status_url 을 짧게
   확인해 끝난 것으로 보이면 삭제한다(문서: 끝나지 않은 요청의 삭제는 400). 그래도 지우지 못하면 예외 없이
   코드만 로그에 남긴다("fal_payload_not_deleted").
@@ -29,13 +38,18 @@ synthesize(text, ref_audio, ref_text, model, *, ref_seconds, ref_mime, timeout, 
   미확인이다.
 - 로그·오류 detail 에 문장·자막·파일명·키·주소(서명이 붙을 수 있음)를 남기지 않는다.
 
+미확인(실제 호출로 확인 필요):
+- Qwen text-to-speech 의 max_new_tokens 기본값이 200(문서)인데 이 값은 보내지 않는다. 음성 토큰과 글자 수의
+  비율이 미확인이라 긴 조각이 잘린 채 나올 수 있다 → Qwen 조각 상한을 보수적으로 100자로 잡았다.
+- 그 밖의 미확인 항목은 각 상수 주석에 있다.
+
 ProviderError 코드(app/ai/base.py 의 목록에 더해 이 모듈이 쓰는 것):
     not_configured : fal 키 없음 (provider="fal")
-    bad_input      : 빈 문장·빈 참조·모르는 모델·모르는 참조 형식·모르는 provider
+    bad_input      : 빈 문장·빈 참조·참조 300초 초과·모르는 모델·모르는 참조 형식·모르는 provider
     ref_too_short  : 참조 음성 3초 미만이거나 길이를 알 수 없음
     timeout        : 전체 상한 초과 또는 HTTP 시간 초과
     http_error     : HTTP 오류·fal 이 알린 오류(error/error_type)
-    bad_output     : 응답 모양이 이상함, 음성 서명이 아님, 형식이 섞임
+    bad_output     : 응답 모양이 이상함, 음성 서명이 아님, 형식이 섞임, 응답 주소가 큐 호스트가 아님
 
 출처는 상수마다 주석으로 단다. "미확인"은 공식 문서에서 확인하지 못한 것이다.
 """
@@ -49,9 +63,11 @@ import logging
 import math
 import os
 import re
+import threading
 import time
 import wave
 from typing import Any
+from urllib.parse import quote, urlsplit
 
 import httpx
 
@@ -66,6 +82,9 @@ ENV_FAL_KEY = "YEOUN_FAL_API_KEY"
 # 출처: https://fal.ai/docs/model-apis/model-endpoints/queue
 # 하위 경로가 있는 endpoint_id 를 제출 주소에 그대로 쓰는 것은 문서 예시 기준이며 실제 호출로는 미확인.
 FAL_QUEUE_BASE = "https://queue.fal.run/"
+FAL_QUEUE_HOST = (
+    "queue.fal.run"  # 응답이 준 status_url·response_url·cancel_url 이 이 호스트일 때만 키를 붙인다
+)
 # 결과 파일 삭제: DELETE https://api.fal.ai/v1/models/requests/{request_id}/payloads
 # 출처: https://fal.ai/docs/platform-apis/v1/models/requests/payloads
 FAL_DELETE_URL = "https://api.fal.ai/v1/models/requests/{request_id}/payloads"
@@ -89,9 +108,15 @@ MODELS = {MODEL_QWEN: QWEN_TTS_ENDPOINT, MODEL_CHATTERBOX: CHATTERBOX_ENDPOINT}
 
 # --- 길이 ----------------------------------------------------------------------
 MIN_REF_SEC = 3.0  # 참조 음성 최소 길이(여운 기준, ref.py 와 같음)
+# 참조 음성 최대 길이(초). Qwen 복제 audio_url 최대 300초
+# (출처: https://fal.ai/models/fal-ai/qwen-3-tts/clone-voice/1.7b/api).
+# Chatterbox 의 참조 길이 상한은 미확인 → 같은 값을 보수적으로 적용한다.
+MAX_REF_SEC = 300.0
 # Chatterbox text 최대 300자 (출처: https://fal.ai/models/fal-ai/chatterbox/text-to-speech/multilingual/api).
-# Qwen 의 text 글자 수 제한은 미확인 → 같은 상한을 보수적으로 쓴다.
 MAX_CHUNK_CHARS = 300
+# Qwen 조각 상한(글자). Qwen 의 text 글자 수 제한은 미확인이고, max_new_tokens 기본 200(문서)을 보내지 않으므로
+# 긴 조각이 잘릴 수 있다. 미확인이라 보수적으로 잡은 값이며 실제 호출로 확인 필요.
+QWEN_MAX_CHUNK_CHARS = 100
 
 # --- 개인정보 헤더 ---------------------------------------------------------------
 # 요청 기록의 JSON 입출력 저장 끄기. CDN 파일에는 적용되지 않는다. 적용 엔드포인트 범위는 미확인.
@@ -123,6 +148,17 @@ _sleep = time.sleep  # 테스트에서 바꿔 끼운다
 def fal_key() -> str | None:
     v = os.environ.get(ENV_FAL_KEY, "").strip()
     return v or None
+
+
+def _is_queue_url(url: str) -> bool:
+    """키를 붙여도 되는 주소인지: research.md 의 큐 호스트(queue.fal.run)의 https 주소만."""
+    try:
+        u = urlsplit(url)
+        return (
+            u.scheme == "https" and u.hostname == FAL_QUEUE_HOST and u.port in (None, 443) and not u.username
+        )
+    except ValueError:
+        return False
 
 
 def sniff_mime(data: bytes) -> str | None:
@@ -161,6 +197,7 @@ def wav_seconds(data: bytes) -> float | None:
         return None
 
 
+_WORD = re.compile(r"\w")
 _SENT_END = re.compile(r"(?<=[.!?。！？…~])\s+|\n+")
 
 
@@ -178,6 +215,10 @@ def split_text(text: str, limit: int = MAX_CHUNK_CHARS) -> list[str]:
             pieces.append(s)
     chunks: list[str] = []
     for p in pieces:
+        if not _WORD.search(p):  # 문장부호만 남은 조각은 소리가 없으므로 따로 보내지 않는다
+            if chunks and len(chunks[-1]) + len(p) <= limit:
+                chunks[-1] = chunks[-1] + p
+            continue
         if chunks and len(chunks[-1]) + 1 + len(p) <= limit:
             chunks[-1] = chunks[-1] + " " + p
         else:
@@ -247,10 +288,13 @@ def synthesize(
     ref_mime: str | None = None,
     timeout: float = DEFAULT_TIMEOUT_SEC,
     provider: str = "fal",
+    wait_cleanup: bool = False,
 ) -> tuple[bytes, str, float]:
     """그분 목소리로 text 를 합성한다. 실패는 ProviderError(code) 로 올린다.
 
     provider="fal"(기본)은 키가 없으면 not_configured. provider="mock" 은 명시적으로 고를 때만 무음 WAV.
+    wait_cleanup=False(기본)면 fal 정리(취소·삭제)를 뒤의 데몬 스레드로 넘기고 바로 돌려준다.
+    True 면 돌려주기 전에 정리까지 끝낸다(평가·미리 듣기처럼 정리 완료를 기다려야 할 때).
     """
     started = time.monotonic()
     if provider not in ("fal", "mock"):
@@ -276,7 +320,10 @@ def synthesize(
         raise ProviderError("ref_too_short", "reference length unknown")
     if secs_f < MIN_REF_SEC:
         raise ProviderError("ref_too_short", f"reference {secs_f:.1f}s < {MIN_REF_SEC:.0f}s")
-    chunks = split_text(text.strip())
+    if secs_f > MAX_REF_SEC:
+        raise ProviderError("bad_input", f"reference over {MAX_REF_SEC:.0f}s")
+    limit = QWEN_MAX_CHUNK_CHARS if model == MODEL_QWEN else MAX_CHUNK_CHARS
+    chunks = split_text(text.strip(), limit)
     if not chunks:
         raise ProviderError("bad_input", "empty text")
     if provider == "mock":
@@ -285,14 +332,67 @@ def synthesize(
         key = fal_key()
         if key is None:
             raise ProviderError("not_configured", "fal key missing")
-        job = _FalJob(key, started + max(0.0, float(timeout)))
+        try:
+            budget = max(0.0, float(timeout))
+        except (TypeError, ValueError):
+            budget = DEFAULT_TIMEOUT_SEC
+        job = _FalJob(key, started + budget)
         try:
             audio, out_mime = job.run(
                 model, chunks, ref_audio, mime, ref_text if isinstance(ref_text, str) else ""
             )
         finally:
-            job.cleanup()
+            # 결과(또는 오류)를 먼저 돌려주고 정리는 뒤에서 한다. wait_cleanup=True 면 여기서 끝까지 정리.
+            if wait_cleanup:
+                _run_cleanup(job)
+            elif job.requests:
+                _start_cleanup(job)
     return audio, out_mime, time.monotonic() - started
+
+
+# =============================================================================
+# 뒤에서 도는 정리
+
+_cleanups: set[threading.Thread] = set()
+_cleanups_lock = threading.Lock()
+
+
+def _run_cleanup(job: _FalJob) -> None:
+    try:
+        job.cleanup()
+    except BaseException as e:  # noqa: BLE001 - 정리는 어떤 경우에도 밖으로 새지 않는다
+        log.warning("fal_cleanup_crashed error=%s", type(e).__name__)
+
+
+def _start_cleanup(job: _FalJob) -> threading.Thread:
+    def body() -> None:
+        try:
+            _run_cleanup(job)
+        finally:
+            with _cleanups_lock:
+                _cleanups.discard(t)
+
+    t = threading.Thread(target=body, name="yeoun-voice-cleanup", daemon=True)
+    with _cleanups_lock:
+        _cleanups.add(t)
+    t.start()
+    return t
+
+
+def wait_for_cleanups(timeout: float | None = None) -> bool:
+    """뒤에서 도는 정리 스레드가 모두 끝날 때까지 기다린다. 다 끝났으면 True."""
+    deadline = None if timeout is None else time.monotonic() + timeout
+    while True:
+        with _cleanups_lock:
+            pending = list(_cleanups)
+        if not pending:
+            return True
+        for t in pending:
+            left = None if deadline is None else max(0.0, deadline - time.monotonic())
+            t.join(left)
+        if deadline is not None and time.monotonic() >= deadline:
+            with _cleanups_lock:
+                return not any(t.is_alive() for t in _cleanups)
 
 
 # =============================================================================
@@ -348,7 +448,18 @@ class _FalJob:
             }
         except (KeyError, TypeError, ValueError) as e:
             raise ProviderError("bad_output", "submit response") from e
+        # 응답이 준 주소에는 키를 붙여 요청하므로 큐 호스트의 https 주소만 쓴다. 아니면 그 주소는 버리고
+        # (정리 단계에서도 쓰지 않는다) bad_output. request_id 는 삭제 API(상수 호스트)로 정리한다.
+        bad = False
+        for k in ("status_url", "response_url", "cancel_url"):
+            if req[k] and not _is_queue_url(req[k]):
+                req[k] = ""
+                bad = True
+        if not req["status_url"] or not req["response_url"]:
+            bad = True
         self.requests.append(req)
+        if bad:
+            raise ProviderError("bad_output", "unexpected queue url")
         return req
 
     def wait(self, req: dict[str, Any]) -> dict[str, Any]:
@@ -464,6 +575,8 @@ class _FalJob:
                     log.warning("fal_cancel_failed status=%s", r.status_code)
             except Exception as e:
                 log.warning("fal_cancel_failed error=%s", type(e).__name__)
+        if not req.get("status_url"):  # 큐 호스트가 아닌 주소였으면 확인하지 않는다
+            return False
         while True:
             left = until - time.monotonic()
             if left <= 0:
@@ -494,7 +607,7 @@ class _FalJob:
                 # 끝났는지 확인하지 못했어도 한 번은 시도한다(실패하면 아래에서 '지우지 못함' 로그).
                 r = httpx.request(
                     "DELETE",
-                    FAL_DELETE_URL.format(request_id=req["id"]),
+                    FAL_DELETE_URL.format(request_id=quote(req["id"], safe="")),
                     headers=self._cleanup_headers(),
                     timeout=CLEANUP_TIMEOUT_SEC,
                 )
