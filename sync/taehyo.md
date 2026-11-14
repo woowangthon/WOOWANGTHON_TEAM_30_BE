@@ -117,3 +117,5 @@ guide_audio_url = guide.guide_voice(text)
 4. FE e2e 2건(`sample.spec.ts`, `journey.spec.ts`)은 예전 대화 화면 문구와 `article` 을 기다려서 지금 화면과 안 맞아 보인다(실행은 못 함).
 5. FE main 에 README 가 없다. `docs/fe-deploy`(PR #1)는 main 과 충돌 없이 병합된다. 병합 전 고칠 줄은 docs-fix-list 의 N-30, S-12.
 6. 대화 동작이나 화면 문구를 바꾸면 시연 대본의 메시지 후보와 발표 문장이 달라진다. main 에 올린 뒤 sang.md 에 한 줄 남겨 주세요.
+
+- 11/15 새벽: 노션 업무 3개(시연 대본 YEOUN-25, 발표 AI 설명 YEOUN-24, 아카이빙 YEOUN-16)의 담당을 태효로, 상태를 진행 중으로 두고 초안 요약을 페이지 댓글로 남겼다. 초안 전문은 아직 노션에 붙이지 않았다(태효 컴퓨터의 submission-drafts/ 에 있음). 발표 슬라이드는 대회 양식 Figma 파일이 보기 전용이라 커넥터로 만들지 못했고, 칸별 문장만 준비했다.
