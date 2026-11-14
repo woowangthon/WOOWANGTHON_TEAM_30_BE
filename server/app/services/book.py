@@ -180,6 +180,85 @@ def generate_book(db: Session, space: Space, *, consent: bool) -> Book:
     return book
 
 
+MAX_CHAPTERS = 30
+
+
+def _mock_story(space: Space, prompt: str, rows: list[tuple[Clip, Asset]]) -> dict[str, Any]:
+    """LLM 없이: 요청과 맞는 녹음(BM25)을 찾아 원본 한 마디씩 그대로 인용한다."""
+    intent = guard.validate_intent(MockLLM().parse_intent(prompt))
+    assert intent is not None
+    docs = [
+        ClipDoc(
+            clip_id=c.id,
+            text=c.text,
+            tokens=doc_tokens(c.text, c.tags or [], a.question_text),
+            date=a.recorded_at.isoformat() if a.recorded_at else None,
+            source=ORIGIN_LABELS.get(a.origin, "녹음"),
+            tags=c.tags or [],
+            question=a.question_text,
+        )
+        for c, a in rows
+    ]
+    # 기억 요청은 '…하던 기억'처럼 길어서 대화보다 낮은 기준을 쓴다
+    hits = [h for h in SpaceIndex(docs).search(prompt, intent, k=4) if h.confidence >= 0.1]
+    by_id = {c.id: (c, a) for c, a in rows}
+    paragraphs = []
+    for h in hits:
+        c, a = by_id[h.clip_id]
+        when = f"{a.recorded_at.year}년 {a.recorded_at.month}월" if a.recorded_at else "언젠가"
+        paragraphs.append(
+            {"text": f"{when}, {space.person_name}께서 이렇게 말씀하셨어요. “{c.text}”", "clip_ids": [c.id]}
+        )
+    return {"found": bool(paragraphs), "title": prompt[:40], "period": "", "paragraphs": paragraphs}
+
+
+def add_story(db: Session, space: Space, prompt: str, *, consent: bool) -> Book:
+    """가족이 적은 기억 하나로 이야기 한 장을 써서 책 맨 앞에 더한다. 관련 녹음이 없으면 지어내지 않는다."""
+    prompt = prompt.strip()
+    rows = _person_clips(db, space.id)[:MAX_SOURCE_CLIPS]
+    if not rows:
+        raise ApiError(400, "book_no_clips")
+    texts = {c.id: c.text for c, _ in rows}
+    llm, _ = registry.build("llm", consent=consent, is_sample=space.is_sample)
+    raw: Any = None
+    by = "mock"
+    if getattr(llm, "write_story", None) and llm.name != "mock":
+        try:
+            raw = llm.write_story(space.person_name, prompt, [_clip_for_prompt(c, a) for c, a in rows])
+            by = llm.name
+        except ProviderError as e:
+            log.warning("story_llm_failed provider=%s code=%s", llm.name, e.code)
+    if not isinstance(raw, dict):
+        raw = _mock_story(space, prompt, rows)
+        by = "mock"
+    chapters = check_draft({"chapters": [raw]}, texts) if raw.get("found") else []
+    if not chapters:
+        log.info("story_not_found space=%s by=%s", space.id, by)
+        raise ApiError(404, "story_not_found")
+    chapter = chapters[0]
+    chapter["prompt"] = prompt[:300]
+
+    book = db.scalar(select(Book).where(Book.space_id == space.id))
+    if book is None:
+        book = Book(space_id=space.id, title=f"{space.person_name}의 목소리가 들리는 책", chapters=[], status="draft")
+        db.add(book)
+    book.chapters = ([chapter] + list(book.chapters or []))[:MAX_CHAPTERS]
+    book.status = "draft"
+    book.approved_at = None
+    if not book.generated_by:
+        book.generated_by = by
+    db.flush()
+    log.info("story_added space=%s by=%s paragraphs=%d", space.id, by, len(chapter["paragraphs"]))
+    return book
+
+
+def delete_chapter(book: Book, chapter_id: str) -> None:
+    kept = [ch for ch in book.chapters if ch.get("id") != chapter_id]
+    if len(kept) == len(book.chapters):
+        raise ApiError(404, "not_found")
+    book.chapters = kept
+
+
 def book_out(db: Session, space: Space, book: Book | None, *, user_id: str | None, can_edit: bool) -> BookOut:
     count = source_clip_count(db, space.id)
     if book is None:
@@ -198,7 +277,9 @@ def book_out(db: Session, space: Space, book: Book | None, *, user_id: str | Non
             paragraphs.append(
                 BookParagraph(id=p["id"], text=p["text"], clip_ids=kept, grounded=ok, edited=bool(p.get("edited")))
             )
-        chapters.append(BookChapter(id=ch["id"], title=ch["title"], period=ch.get("period"), paragraphs=paragraphs))
+        chapters.append(
+            BookChapter(id=ch["id"], title=ch["title"], period=ch.get("period"), prompt=ch.get("prompt"), paragraphs=paragraphs)
+        )
     order = [i for i in dict.fromkeys(ids) if i in alive]
     return BookOut(
         exists=True,
@@ -344,6 +425,8 @@ __all__ = [
     "call",
     "check_draft",
     "find_paragraph",
+    "add_story",
+    "delete_chapter",
     "generate_book",
     "source_clip_count",
     "update_paragraph",

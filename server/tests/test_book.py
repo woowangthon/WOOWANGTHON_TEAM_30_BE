@@ -84,3 +84,35 @@ def test_call_unknown_chapter_and_viewer_cannot_generate(client):
     _book(client, sid)
     r = client.post(f"/api/spaces/{sid}/book/chapters/nope/call", json={"message": "안녕"})
     assert r.status_code == 404
+
+
+def test_story_from_family_prompt(client):
+    space, clips = ready_space(client)
+    sid = space["id"]
+    first = next(c for c in clips if c["included"] and c["transcript"])
+    word = first["transcript"].split()[0]
+    r = client.post(f"/api/spaces/{sid}/book/stories", json={"prompt": f"{word} 이야기"})
+    assert r.status_code == 200, r.text
+    ch = r.json()["chapters"][0]
+    assert ch["prompt"] == f"{word} 이야기" and ch["paragraphs"]
+    assert all(p["grounded"] for p in ch["paragraphs"])
+    r = client.post(f"/api/spaces/{sid}/book/stories", json={"prompt": "우주선 타고 화성 간 기억"})
+    assert r.status_code == 404 and r.json()["error"]["code"] == "story_not_found"  # 지어내지 않는다
+    r = client.delete(f"/api/spaces/{sid}/book/chapters/{ch['id']}")
+    assert r.status_code == 200 and all(c["id"] != ch["id"] for c in r.json()["chapters"])
+
+
+def test_talk_one_reply(client):
+    space, clips = ready_space(client)
+    sid = space["id"]
+    text = next(c for c in clips if c["included"] and c["transcript"])["transcript"]
+
+    def talk(msg):
+        r = client.post(f"/api/spaces/{sid}/talk", json={"message": msg, "history": []})
+        assert r.status_code == 200, r.text
+        return r.json()
+
+    res = talk(text)  # mock: 맞는 원본 하나를 답장으로
+    assert res["mode"] == "original" and len(res["clips"]) == 1 and res["text"] == res["clips"][0]["transcript"]
+    assert talk("엄마 따라가고 싶어")["mode"] == "crisis"
+    assert talk("돈 좀 보내줘")["mode"] == "guide"

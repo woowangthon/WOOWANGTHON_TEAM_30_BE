@@ -21,9 +21,10 @@ from app.errors import ApiError
 from app.models import Clip, Favorite, UsageCounter, User
 from app.routers.assets import read_limited
 from app.routers.auth import client_ip
-from app.schemas import ChatRequest, ChatResponse, FavoriteUpdate, TranscribeResponse
+from app.schemas import CallRequest, CallResponse, ChatRequest, ChatResponse, FavoriteUpdate, TranscribeResponse
 from app.security.auth import SpaceAccess, current_user, space_reader
 from app.services.chat import answer
+from app.services.talk import talk as persona_talk
 
 router = APIRouter(tags=["chat"])
 
@@ -87,6 +88,35 @@ def chat(
         consent=owner_consent,
     )
     resp = result.response
+    resp.remaining_today = remaining
+    return resp
+
+
+@router.post("/spaces/{space_id}/talk", response_model=CallResponse)
+def talk(
+    body: CallRequest,
+    request: Request,
+    access: SpaceAccess = Depends(space_reader),
+    db: Session = Depends(get_db),
+) -> CallResponse:
+    """그 사람과 메신저처럼 대화: 답장 하나 (원본 녹음 또는 근거가 붙은 AI 답)."""
+    remaining = None
+    if access.user is None:
+        _sample_rate_limit(client_ip(request))
+    else:
+        remaining = _count_chat(db, access.user)
+        db.commit()
+    owner_consent = False
+    if not access.space.is_sample:
+        owner_consent = _consent(db.get(User, access.space.owner_id))
+    resp = persona_talk(
+        db,
+        access.space,
+        body.message,
+        body.history,
+        user_id=access.user.id if access.user else None,
+        consent=owner_consent,
+    )
     resp.remaining_today = remaining
     return resp
 

@@ -15,7 +15,7 @@ from app.models import Book, User
 from app.routers.auth import client_ip
 from app.routers.chat import _consent, _count_chat, _sample_rate_limit
 from app.schemas import Book as BookOut
-from app.schemas import BookParagraphUpdate, CallRequest, CallResponse
+from app.schemas import BookParagraphUpdate, CallRequest, CallResponse, StoryRequest
 from app.security.auth import SpaceAccess, space_editor, space_reader
 from app.services import book as svc
 
@@ -56,6 +56,38 @@ def generate(access: SpaceAccess = Depends(space_editor), db: Session = Depends(
     if access.space.is_sample:
         raise ApiError(403, "sample_read_only")
     book = svc.generate_book(db, access.space, consent=_owner_consent(db, access))
+    db.commit()
+    db.refresh(book)
+    return svc.book_out(db, access.space, book, user_id=access.user.id if access.user else None, can_edit=True)
+
+
+@router.post("/spaces/{space_id}/book/stories", response_model=BookOut)
+def add_story(
+    body: StoryRequest,
+    request: Request,
+    access: SpaceAccess = Depends(space_reader),
+    db: Session = Depends(get_db),
+) -> BookOut:
+    """가족이 적은 기억으로 이야기 한 장. 샘플 공간은 체험용으로 누구나(속도 제한) 더할 수 있다."""
+    if access.space.is_sample:
+        _sample_rate_limit(client_ip(request))
+    else:
+        access.require("editor")
+    book = svc.add_story(db, access.space, body.prompt, consent=_owner_consent(db, access))
+    db.commit()
+    db.refresh(book)
+    user_id = access.user.id if access.user else None
+    return svc.book_out(db, access.space, book, user_id=user_id, can_edit=_can_edit(access))
+
+
+@router.delete("/spaces/{space_id}/book/chapters/{chapter_id}", response_model=BookOut)
+def delete_chapter(
+    chapter_id: str, access: SpaceAccess = Depends(space_editor), db: Session = Depends(get_db)
+) -> BookOut:
+    book = _get(db, access.space.id)
+    if book is None or access.space.is_sample:
+        raise ApiError(404, "not_found")
+    svc.delete_chapter(book, chapter_id)
     db.commit()
     db.refresh(book)
     return svc.book_out(db, access.space, book, user_id=access.user.id if access.user else None, can_edit=True)

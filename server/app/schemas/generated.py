@@ -125,6 +125,10 @@ __all__ = [
     'LLMBookChapter',
     'LLMBookDraft',
     'LLMCallReply',
+    'StoryRequest',
+    'LLMPersonaCard',
+    'LLMTalkReply',
+    'LLMStoryDraft',
 ]
 
 
@@ -706,6 +710,7 @@ class BookChapter(BaseModel):
     title: str
     period: Optional[str] = Field(default=None, description='예: 1970년대 / 시기 모름')
     paragraphs: list[BookParagraph]
+    prompt: Optional[str] = Field(default=None, description='가족이 적은 기억 (이 장을 만든 요청)')
 
 
 class Book(BaseModel):
@@ -771,6 +776,38 @@ class LLMCallReply(BaseModel):
     refuse: bool
     text: str = Field(max_length=400)
     source_clip_ids: list[str] = Field(max_length=4)
+
+
+class StoryRequest(BaseModel):
+    prompt: str = Field(min_length=2, max_length=300, description='이야기로 만들 기억 (예: 할머니랑 김치찌개 끓이던 기억)')
+
+
+class LLMPersonaCard(BaseModel):
+    """녹음에서 뽑은 그 사람의 말하기 특징 (대화 답의 말투를 맞추는 데만 쓴다)"""
+
+    calls_user: str = Field(max_length=30, description='듣는 가족을 부르는 말 (예: 우리 강아지)')
+    self_ref: str = Field(max_length=20, description='자기를 부르는 말 (예: 할매)')
+    speech_style: str = Field(max_length=200, description='어미·사투리·말버릇 요약')
+    phrases: list[str] = Field(max_length=8, description='자주 쓰는 표현 (자막 그대로)')
+    topics: list[str] = Field(max_length=8, description='자주 나오는 이야기 주제')
+
+
+class LLMTalkReply(BaseModel):
+    """대화 답장 하나. use_clip_id가 후보 안의 클립이면 그 원본 녹음을 그대로 답장으로 쓴다."""
+
+    refuse: bool
+    use_clip_id: str = Field(description='원본 녹음 하나가 그대로 답이 되면 그 clip_id, 아니면 빈 문자열')
+    text: str = Field(max_length=300)
+    source_clip_ids: list[str] = Field(max_length=4)
+
+
+class LLMStoryDraft(BaseModel):
+    """가족이 적은 기억 하나로 쓰는 이야기 한 장. 관련 녹음이 없으면 found=false."""
+
+    found: bool
+    title: str = Field(max_length=40)
+    period: str = Field(max_length=30)
+    paragraphs: list[LLMBookParagraph] = Field(max_length=6)
 
 
 ErrorBody.model_rebuild()
@@ -851,3 +888,7 @@ LLMBookParagraph.model_rebuild()
 LLMBookChapter.model_rebuild()
 LLMBookDraft.model_rebuild()
 LLMCallReply.model_rebuild()
+StoryRequest.model_rebuild()
+LLMPersonaCard.model_rebuild()
+LLMTalkReply.model_rebuild()
+LLMStoryDraft.model_rebuild()

@@ -780,6 +780,13 @@
           "items": {
             "$ref": "#/$defs/BookParagraph"
           }
+        },
+        "prompt": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "가족이 적은 기억 (이 장을 만든 요청)"
         }
       }
     },
@@ -1056,6 +1063,125 @@
             "type": "string"
           },
           "maxItems": 4
+        }
+      }
+    },
+
+    "StoryRequest": {
+      "type": "object",
+      "required": [
+        "prompt"
+      ],
+      "properties": {
+        "prompt": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 300,
+          "description": "이야기로 만들 기억 (예: 할머니랑 김치찌개 끓이던 기억)"
+        }
+      }
+    },
+    "LLMPersonaCard": {
+      "type": "object",
+      "description": "녹음에서 뽑은 그 사람의 말하기 특징 (대화 답의 말투를 맞추는 데만 쓴다)",
+      "required": [
+        "calls_user",
+        "self_ref",
+        "speech_style",
+        "phrases",
+        "topics"
+      ],
+      "properties": {
+        "calls_user": {
+          "type": "string",
+          "maxLength": 30,
+          "description": "듣는 가족을 부르는 말 (예: 우리 강아지)"
+        },
+        "self_ref": {
+          "type": "string",
+          "maxLength": 20,
+          "description": "자기를 부르는 말 (예: 할매)"
+        },
+        "speech_style": {
+          "type": "string",
+          "maxLength": 200,
+          "description": "어미·사투리·말버릇 요약"
+        },
+        "phrases": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 8,
+          "description": "자주 쓰는 표현 (자막 그대로)"
+        },
+        "topics": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 8,
+          "description": "자주 나오는 이야기 주제"
+        }
+      }
+    },
+    "LLMTalkReply": {
+      "type": "object",
+      "description": "대화 답장 하나. use_clip_id가 후보 안의 클립이면 그 원본 녹음을 그대로 답장으로 쓴다.",
+      "required": [
+        "refuse",
+        "use_clip_id",
+        "text",
+        "source_clip_ids"
+      ],
+      "properties": {
+        "refuse": {
+          "type": "boolean"
+        },
+        "use_clip_id": {
+          "type": "string",
+          "description": "원본 녹음 하나가 그대로 답이 되면 그 clip_id, 아니면 빈 문자열"
+        },
+        "text": {
+          "type": "string",
+          "maxLength": 300
+        },
+        "source_clip_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 4
+        }
+      }
+    },
+    "LLMStoryDraft": {
+      "type": "object",
+      "description": "가족이 적은 기억 하나로 쓰는 이야기 한 장. 관련 녹음이 없으면 found=false.",
+      "required": [
+        "found",
+        "title",
+        "period",
+        "paragraphs"
+      ],
+      "properties": {
+        "found": {
+          "type": "boolean"
+        },
+        "title": {
+          "type": "string",
+          "maxLength": 40
+        },
+        "period": {
+          "type": "string",
+          "maxLength": 30
+        },
+        "paragraphs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/LLMBookParagraph"
+          },
+          "maxItems": 6
         }
       }
     }
