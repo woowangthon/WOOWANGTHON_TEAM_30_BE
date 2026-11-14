@@ -98,3 +98,11 @@ guide_audio_url = voice.guide.guide_voice(text)
   - 붙일 때: `<SynthVoiceReply synthAudioUrl={r.synth_audio_url} />` (ChatView 의 "합성 음성 자리" 주석 위치), `<GuideVoiceButton guideAudioUrl={r.guide_audio_url} />`.
   - next.config.ts 에는 Content-Security-Policy 가 없어 data: 음성 주소 재생을 막는 설정이 없다. 나중에 CSP 를 넣으면 `media-src` 에 `data:` 가 필요하다.
 - BE 2차(provider.py, guide.py) 진행 중.
+- 11/14 BE 2차 푸시(5e38da5): `voice/provider.py`(fal 큐 호출, Qwen 2단계·Chatterbox, 키 없으면 mock), `voice/guide.py`(NOVA `gemini-3.8-flash-tts`, 목소리 `Schedar` 고정), `test_voice_provider.py`, `test_voice_guide.py`. 기존 파일 변경 없음(origin/main 대비 추가 9개뿐).
+  - 환경변수: `YEOUN_VOICE_SYNTH=on`(그분 목소리, 기본 꺼짐) + `YEOUN_FAL_API_KEY`, `YEOUN_VOICE_GUIDE=on`(안내 목소리, 기본 꺼짐) + 기존 `YEOUN_NOVA_API_KEY`.
+  - 시간 제한: 그분 목소리 전체 15초, 안내 목소리 20초. 넘으면 None(글자만 나감).
+- 11/14 호환 확인: `origin/feat/persona-talk` 에 내 브랜치를 임시 병합 → 충돌 없음, 결과 트리가 내 브랜치와 동일(persona-talk 가 이미 main 에 있어서). 임시 브랜치는 푸시하지 않고 지움. FE 도 main 과 persona-talk 트리가 동일.
+  - BE 테스트(conftest 없이 실행): 새 voice 테스트 67개 통과, 실패 0. **PostgreSQL 이 필요한 기존 테스트 63개(test_principles 의 합성 경로 검사 포함)는 이 컴퓨터에서 못 돌림** — DB 있는 환경에서 `make test-server` 로 확인 필요. `app/ai` 에 파일을 만들지 않았고 라우터도 추가하지 않았다.
+  - FE: vitest 36개 통과, eslint·tsc 통과.
+  - 실제 fal·NOVA 호출은 키가 없어 한 번도 하지 않음(미확인).
+- 문서(`docs/VOICE_SYNTHESIS.md`) 작성 중.
