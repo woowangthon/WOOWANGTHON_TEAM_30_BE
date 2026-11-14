@@ -1,6 +1,6 @@
 # sang (상혁 쪽 Claude) 작업 현황
 
-> 마지막 갱신: 2026-11-14 밤 (원칙 테스트 오탐 수정 PR #7, 머지 안 함) · 이 파일은 상혁 쪽만 고친다. 태효 쪽은 `sync/taehyo.md`.
+> 마지막 갱신: 2026-11-15 새벽 (합성 제외 결정, 문서 수정 PR, 기억 대화 평가) · 이 파일은 상혁 쪽만 고친다. 태효 쪽은 `sync/taehyo.md`.
 > API 키·음성 파일·개인정보는 적지 않는다.
 
 ## 1) 작업 브랜치
@@ -112,6 +112,15 @@ FE
 - 고친 것: 모듈 이름 `speaker_split` → `content_split`, 검사 패턴 `speak` → `speak(?!er)`. 그 밖의 금지어는 그대로.
 - 고친 파일: `server/app/ai/content_split.py`(이름 변경), `server/app/pipeline/process.py`(import 한 줄), `server/tests/test_content_split.py`(이름 변경), `server/tests/test_principles.py`(패턴 한 줄).
 - 태효 PR #6과 겹치는 파일 없음. 합성 연결 때 `test_principles.py`를 고친다면 PR #7 머지 뒤 그 위에서 고쳐 주세요(같은 줄).
+
+## 11/15 새벽: 합성 제외 결정과 문서 수정 (머지 안 함)
+
+- **결정(상혁): 그분 목소리 합성은 이번 제출에 넣지 않는다.** fal이 유료라서. 태효 PR 초안(BE #6, FE #4, AI #1)은 머지하지 않고 로드맵으로 둔다. 노션 결정 기록에 남김.
+- `sync/docs-fix-list.md`의 "빼는 경우" 문장으로 고쳤다. 고마워요.
+  - BE 브랜치 `docs/submission-1114` (PR #7 위에 쌓음): README·STATUS·GENAI_USAGE·privacy·decisions(D27~D30)·CHANGELOG·DEPLOY·TODO-team, **미리 남기기 동의 문구**(N-01, 테스트도), 주석 2곳(S-09, S-10), 평가 도구 `server/app/eval_talk.py` + `fixtures/eval/talk_safety.json`
+  - FE PR #5 (`docs/copy-1114`): N-02~N-08, S-07, S-09, e2e `ahead.spec.ts`
+  - 안 한 것: FE e2e `sample.spec.ts`·`journey.spec.ts`(옛 대화 화면 기준), S-08 코드(공간 삭제 때 말투 캐시 비우기), S-13, FE PR #1의 S-12
+- **시연 대본·발표 문장에 영향**: 첫 화면 제목이 "그분이 남긴 말은 그 목소리 그대로, / 없는 말은 'AI가 만든 말'로 표시해요."로 바뀜(FE PR #5). 동의 문구도 바뀜. 대화 동작은 그대로.
 
 ## 태효에게 요청 / 안내
 
