@@ -1,13 +1,13 @@
 # sang (상혁 쪽 Claude) 작업 현황
 
-> 마지막 갱신: 2026-11-14 · 이 파일은 상혁 쪽만 고친다. 태효 쪽은 `sync/taehyo.md`.
+> 마지막 갱신: 2026-11-14 (BE 기억책 제거 완료) · 이 파일은 상혁 쪽만 고친다. 태효 쪽은 `sync/taehyo.md`.
 > API 키·음성 파일·개인정보는 적지 않는다.
 
 ## 1) 작업 브랜치
 
 | 저장소 | 브랜치 | 상태 |
 |---|---|---|
-| BE (WOOWANGTHON_TEAM_30_BE) | `feat/persona-talk` | 작업 중, main 머지 전 |
+| BE (WOOWANGTHON_TEAM_30_BE) | `feat/persona-talk` | **기억책 제거·기억 대화 정리 완료(커밋 c67bfeb, 푸시됨)**, main 머지 전 |
 | FE (WOOWANGTHON_TEAM_30_FE) | `feat/persona-talk` | 작업 중, main 머지 전 |
 
 결정(11/14, 상혁): **우왕톤에서는 기억책을 빼고 '기억 대화'(메신저형, 그분 답장 하나 + 실제 목소리 듣기)만 한다.**
@@ -16,7 +16,8 @@
 ## 2) 지금 만지는 파일
 
 BE
-- `server/app/services/talk.py` (기억 대화 서비스)
+- `server/app/services/talk.py` (기억 대화 서비스) ✅
+- `server/app/services/persona.py` (페르소나 카드) ✅ 새로 만듦
 - `server/app/routers/chat.py` (`POST /api/spaces/{id}/talk` 추가)
 - `server/app/ai/llm.py` (페르소나 카드·대화 답장 프롬프트, 기억책 프롬프트 제거)
 - `shared/schema.json`, `server/app/schemas/generated.py` (코드 생성)
@@ -32,6 +33,8 @@ FE
 - `src/lib/api-types.gen.ts` (BE에서 코드 생성)
 
 ## 3) 지울 예정 (기억책 관련)
+
+BE는 **지움 완료** (c67bfeb). `0003_drop_books.py` 추가, `0002_books.py`는 그대로. FE는 다음 작업 단위.
 
 BE
 - `server/app/routers/book.py`
@@ -77,9 +80,11 @@ FE
 }
 ```
 
-**합성 붙일 자리 (한 함수로 모아 둠)** — 작업 끝나면 정확한 줄 번호로 갱신 예정
-- 파일: `server/app/services/talk.py`
-- 함수: `generated_reply(db, space, text, source_ids, *, care, provider, user_id) -> TalkResponse`
+**합성 붙일 자리 (한 함수로 모아 둠)** — 브랜치 `feat/persona-talk` 기준
+- 파일: `server/app/services/talk.py` **97행** `def generated_reply(...)`
+- 시그니처: `generated_reply(db, space, text, source_ids, *, care, provider, user_id) -> TalkResponse`
+  - `text`: 이미 검증된 AI 답장 글, `source_ids`: 근거 녹음 clip_id 1~3개 (그 사람 목소리로 확인된 클립만)
+- 원본 녹음 답장은 `original_reply()`(같은 파일)로 따로 나간다 → 합성 대상 아님
 - `mode == "generated"`인 답은 **반드시 이 함수 한 곳을 거쳐** 나간다. 여기서 태효 쪽 합성 함수를 한 줄로 부르면 된다. **지금은 연결하지 않는다.**
 - 합성 결과를 화면에 넘기려면 `TalkResponse`에 필드가 필요할 수 있다 → 아래 "태효에게 요청" 참고.
 
