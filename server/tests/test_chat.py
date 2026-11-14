@@ -137,3 +137,30 @@ def test_transcribe_without_stt_key_is_honest(client):
     assert r.status_code == 503
     assert r.json()["error"]["code"] == "stt_unavailable"
     assert "글로" in r.json()["error"]["message_ko"]
+
+
+def test_talk_one_reply(client):
+    """기억 대화: 답장은 하나. mock은 맞는 원본 하나를 답장으로, 위기·금지 주제는 안내."""
+    space, clips = ready_space(client)
+    sid = space["id"]
+    text = next(c for c in clips if c["included"] and c["transcript"])["transcript"]
+
+    def talk(msg):
+        r = client.post(f"/api/spaces/{sid}/talk", json={"message": msg, "history": []})
+        assert r.status_code == 200, r.text
+        return r.json()
+
+    res = talk(text)
+    assert res["mode"] == "original" and len(res["clips"]) == 1
+    assert res["text"] == res["clips"][0]["transcript"]  # 원본 자막 그대로
+    crisis = talk("엄마 따라가고 싶어")
+    assert crisis["mode"] == "crisis" and crisis["text"].startswith("잠깐 멈출게요") and crisis["clips"] == []
+    assert talk("돈 좀 보내줘")["mode"] == "guide"
+
+
+def test_talk_never_uses_other_voice(client):
+    space, clips = ready_space(client)
+    child = {c["id"] for c in clips if not c["included"]}
+    for q in ["면접 보고 왔어", "엄마는 저녁 먹었어?"]:
+        r = client.post(f"/api/spaces/{space['id']}/talk", json={"message": q}).json()
+        assert not ({c["clip_id"] for c in r["clips"]} | {c["clip_id"] for c in r["sources"]}) & child

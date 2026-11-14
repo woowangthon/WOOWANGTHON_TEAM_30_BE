@@ -713,160 +713,7 @@
       "required": ["collections"],
       "properties": { "collections": { "type": "array", "items": { "$ref": "#/$defs/Collection" } } }
     },
-
-    "BookStatus": {
-      "description": "기억책 상태. draft는 가족 검수 전, approved는 가족이 승인한 책.",
-      "type": "string",
-      "enum": [
-        "draft",
-        "approved"
-      ]
-    },
-    "BookParagraph": {
-      "type": "object",
-      "description": "책 문단. AI가 쓴 정리 문장이고, clip_ids는 근거가 된 원본 녹음이다. 근거가 없으면 grounded=false로 표시한다.",
-      "required": [
-        "id",
-        "text",
-        "clip_ids",
-        "grounded",
-        "edited"
-      ],
-      "properties": {
-        "id": {
-          "type": "string"
-        },
-        "text": {
-          "type": "string"
-        },
-        "clip_ids": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        },
-        "grounded": {
-          "type": "boolean"
-        },
-        "edited": {
-          "type": "boolean",
-          "description": "가족이 고친 문단"
-        }
-      }
-    },
-    "BookChapter": {
-      "type": "object",
-      "required": [
-        "id",
-        "title",
-        "paragraphs"
-      ],
-      "properties": {
-        "id": {
-          "type": "string"
-        },
-        "title": {
-          "type": "string"
-        },
-        "period": {
-          "type": [
-            "string",
-            "null"
-          ],
-          "description": "예: 1970년대 / 시기 모름"
-        },
-        "paragraphs": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/BookParagraph"
-          }
-        }
-      }
-    },
-    "Book": {
-      "type": "object",
-      "description": "목소리가 들리는 기억책. clips에는 문단 근거 클립의 카드가 한 번씩 들어 있다.",
-      "required": [
-        "exists",
-        "chapters",
-        "clips",
-        "can_edit"
-      ],
-      "properties": {
-        "exists": {
-          "type": "boolean"
-        },
-        "status": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/BookStatus"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "title": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "chapters": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/BookChapter"
-          }
-        },
-        "clips": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/ClipCard"
-          }
-        },
-        "generated_by": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "updated_at": {
-          "type": [
-            "string",
-            "null"
-          ],
-          "format": "date-time"
-        },
-        "grounded_ratio": {
-          "type": [
-            "number",
-            "null"
-          ],
-          "description": "근거 클립이 붙은 문단 비율"
-        },
-        "can_edit": {
-          "type": "boolean"
-        },
-        "source_clip_count": {
-          "type": "integer",
-          "description": "책을 만들 때 쓸 수 있는 그 사람의 녹음 수"
-        }
-      }
-    },
-    "BookParagraphUpdate": {
-      "type": "object",
-      "required": [
-        "text"
-      ],
-      "properties": {
-        "text": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 1000
-        }
-      }
-    },
-    "CallTurn": {
+    "TalkTurn": {
       "type": "object",
       "required": [
         "role",
@@ -886,7 +733,7 @@
         }
       }
     },
-    "CallRequest": {
+    "TalkRequest": {
       "type": "object",
       "required": [
         "message"
@@ -900,14 +747,14 @@
         "history": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/CallTurn"
+            "$ref": "#/$defs/TalkTurn"
           },
           "maxItems": 12
         }
       }
     },
-    "CallMode": {
-      "description": "기억 통화 답의 종류. original: 원본 녹음, generated: AI 생성(근거 표시), guide: 여운 안내, crisis: 위기 전환",
+    "TalkMode": {
+      "description": "기억 대화 답장의 종류. original: 원본 녹음, generated: AI가 만든 말(근거 표시), guide: 여운 안내, crisis: 위기 전환",
       "type": "string",
       "enum": [
         "original",
@@ -916,7 +763,7 @@
         "crisis"
       ]
     },
-    "CallResponse": {
+    "TalkResponse": {
       "type": "object",
       "required": [
         "mode",
@@ -927,7 +774,7 @@
       ],
       "properties": {
         "mode": {
-          "$ref": "#/$defs/CallMode"
+          "$ref": "#/$defs/TalkMode"
         },
         "text": {
           "type": "string",
@@ -968,77 +815,56 @@
         }
       }
     },
-    "LLMBookParagraph": {
+    "LLMPersonaCard": {
       "type": "object",
+      "description": "녹음에서 뽑은 그 사람의 말하기 특징 (대화 답의 말투를 맞추는 데만 쓴다)",
       "required": [
-        "text",
-        "clip_ids"
+        "calls_user",
+        "self_ref",
+        "speech_style",
+        "phrases",
+        "topics"
       ],
       "properties": {
-        "text": {
+        "calls_user": {
           "type": "string",
-          "maxLength": 600
+          "maxLength": 30,
+          "description": "듣는 가족을 부르는 말 (예: 우리 강아지)"
         },
-        "clip_ids": {
+        "self_ref": {
+          "type": "string",
+          "maxLength": 20,
+          "description": "자기를 부르는 말 (예: 할매)"
+        },
+        "speech_style": {
+          "type": "string",
+          "maxLength": 200,
+          "description": "어미·사투리·말버릇 요약"
+        },
+        "phrases": {
           "type": "array",
           "items": {
             "type": "string"
           },
-          "maxItems": 6
-        }
-      }
-    },
-    "LLMBookChapter": {
-      "type": "object",
-      "required": [
-        "title",
-        "period",
-        "paragraphs"
-      ],
-      "properties": {
-        "title": {
-          "type": "string",
-          "maxLength": 40
+          "maxItems": 8,
+          "description": "자주 쓰는 표현 (자막 그대로)"
         },
-        "period": {
-          "type": "string",
-          "maxLength": 30
-        },
-        "paragraphs": {
+        "topics": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/LLMBookParagraph"
+            "type": "string"
           },
-          "maxItems": 8
+          "maxItems": 8,
+          "description": "자주 나오는 이야기 주제"
         }
       }
     },
-    "LLMBookDraft": {
+    "LLMTalkReply": {
       "type": "object",
-      "description": "LLM 이야기 정리 결과. clip_ids는 서버가 받은 목록 안에서만 인정한다.",
-      "required": [
-        "title",
-        "chapters"
-      ],
-      "properties": {
-        "title": {
-          "type": "string",
-          "maxLength": 40
-        },
-        "chapters": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/LLMBookChapter"
-          },
-          "maxItems": 8
-        }
-      }
-    },
-    "LLMCallReply": {
-      "type": "object",
-      "description": "기억 통화의 생성 답. source_clip_ids는 이 장의 클립 안에서만 인정하고, 근거가 없으면 refuse=true.",
+      "description": "대화 답장 하나. use_clip_id가 후보 안의 클립이면 그 원본 녹음을 그대로 답장으로 쓴다.",
       "required": [
         "refuse",
+        "use_clip_id",
         "text",
         "source_clip_ids"
       ],
@@ -1046,9 +872,13 @@
         "refuse": {
           "type": "boolean"
         },
+        "use_clip_id": {
+          "type": "string",
+          "description": "원본 녹음 하나가 그대로 답이 되면 그 clip_id, 아니면 빈 문자열"
+        },
         "text": {
           "type": "string",
-          "maxLength": 400
+          "maxLength": 300
         },
         "source_clip_ids": {
           "type": "array",
@@ -1056,6 +886,26 @@
             "type": "string"
           },
           "maxItems": 4
+        }
+      }
+    },
+    "LLMSpeakerSplit": {
+      "type": "object",
+      "description": "목소리로 화자를 나누지 못한 녹음을 내용으로 나눈 결과. labels는 문장 순서대로 A 또는 B.",
+      "required": [
+        "labels"
+      ],
+      "properties": {
+        "labels": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "A",
+              "B"
+            ]
+          },
+          "maxItems": 400
         }
       }
     }
