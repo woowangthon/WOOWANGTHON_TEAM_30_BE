@@ -110,6 +110,21 @@ __all__ = [
     'CollectionCreate',
     'CollectionUpdate',
     'CollectionList',
+    'BookStatus',
+    'BOOK_STATUS_VALUES',
+    'BookParagraph',
+    'BookChapter',
+    'Book',
+    'BookParagraphUpdate',
+    'CallTurn',
+    'CallRequest',
+    'CallMode',
+    'CALL_MODE_VALUES',
+    'CallResponse',
+    'LLMBookParagraph',
+    'LLMBookChapter',
+    'LLMBookDraft',
+    'LLMCallReply',
 ]
 
 
@@ -186,6 +201,16 @@ LINK_STATUS_VALUES: tuple[str, ...] = ('active', 'completed', 'expired', 'revoke
 
 QuestionCategory = Literal['childhood', 'youth', 'love_family', 'to_family', 'life_advice', 'food', 'holidays', 'everyday', 'health_heart', 'custom']
 QUESTION_CATEGORY_VALUES: tuple[str, ...] = ('childhood', 'youth', 'love_family', 'to_family', 'life_advice', 'food', 'holidays', 'everyday', 'health_heart', 'custom',)
+
+
+# 기억책 상태. draft는 가족 검수 전, approved는 가족이 승인한 책.
+BookStatus = Literal['draft', 'approved']
+BOOK_STATUS_VALUES: tuple[str, ...] = ('draft', 'approved',)
+
+
+# 기억 통화 답의 종류. original: 원본 녹음, generated: AI 생성(근거 표시), guide: 여운 안내, crisis: 위기 전환
+CallMode = Literal['original', 'generated', 'guide', 'crisis']
+CALL_MODE_VALUES: tuple[str, ...] = ('original', 'generated', 'guide', 'crisis',)
 
 
 class ErrorBody(BaseModel):
@@ -666,6 +691,88 @@ class CollectionList(BaseModel):
     collections: list[Collection]
 
 
+class BookParagraph(BaseModel):
+    """책 문단. AI가 쓴 정리 문장이고, clip_ids는 근거가 된 원본 녹음이다. 근거가 없으면 grounded=false로 표시한다."""
+
+    id: str
+    text: str
+    clip_ids: list[str]
+    grounded: bool
+    edited: bool = Field(description='가족이 고친 문단')
+
+
+class BookChapter(BaseModel):
+    id: str
+    title: str
+    period: Optional[str] = Field(default=None, description='예: 1970년대 / 시기 모름')
+    paragraphs: list[BookParagraph]
+
+
+class Book(BaseModel):
+    """목소리가 들리는 기억책. clips에는 문단 근거 클립의 카드가 한 번씩 들어 있다."""
+
+    exists: bool
+    status: Optional[BookStatus] = Field(default=None)
+    title: Optional[str] = Field(default=None)
+    chapters: list[BookChapter]
+    clips: list[ClipCard]
+    generated_by: Optional[str] = Field(default=None)
+    updated_at: Optional[dt.datetime] = Field(default=None)
+    grounded_ratio: Optional[float] = Field(default=None, description='근거 클립이 붙은 문단 비율')
+    can_edit: bool
+    source_clip_count: Optional[int] = Field(default=None, description='책을 만들 때 쓸 수 있는 그 사람의 녹음 수')
+
+
+class BookParagraphUpdate(BaseModel):
+    text: str = Field(min_length=1, max_length=1000)
+
+
+class CallTurn(BaseModel):
+    role: Literal['user', 'reply']
+    text: str = Field(max_length=1000)
+
+
+class CallRequest(BaseModel):
+    message: str = Field(min_length=1, max_length=500)
+    history: list[CallTurn] = Field(default_factory=list, max_length=12)
+
+
+class CallResponse(BaseModel):
+    mode: CallMode
+    text: str = Field(description='generated면 AI가 만든 말(그 사람 말투), 그 밖에는 여운 안내')
+    clips: list[ClipCard] = Field(description='original: 들려줄 원본')
+    sources: list[ClipCard] = Field(description='generated: 근거가 된 원본')
+    care: Optional[CareNotice] = Field(default=None)
+    provider: str
+    remaining_today: Optional[int] = Field(default=None)
+
+
+class LLMBookParagraph(BaseModel):
+    text: str = Field(max_length=600)
+    clip_ids: list[str] = Field(max_length=6)
+
+
+class LLMBookChapter(BaseModel):
+    title: str = Field(max_length=40)
+    period: str = Field(max_length=30)
+    paragraphs: list[LLMBookParagraph] = Field(max_length=8)
+
+
+class LLMBookDraft(BaseModel):
+    """LLM 이야기 정리 결과. clip_ids는 서버가 받은 목록 안에서만 인정한다."""
+
+    title: str = Field(max_length=40)
+    chapters: list[LLMBookChapter] = Field(max_length=8)
+
+
+class LLMCallReply(BaseModel):
+    """기억 통화의 생성 답. source_clip_ids는 이 장의 클립 안에서만 인정하고, 근거가 없으면 refuse=true."""
+
+    refuse: bool
+    text: str = Field(max_length=400)
+    source_clip_ids: list[str] = Field(max_length=4)
+
+
 ErrorBody.model_rebuild()
 ErrorResponse.model_rebuild()
 Health.model_rebuild()
@@ -733,3 +840,14 @@ Collection.model_rebuild()
 CollectionCreate.model_rebuild()
 CollectionUpdate.model_rebuild()
 CollectionList.model_rebuild()
+BookParagraph.model_rebuild()
+BookChapter.model_rebuild()
+Book.model_rebuild()
+BookParagraphUpdate.model_rebuild()
+CallTurn.model_rebuild()
+CallRequest.model_rebuild()
+CallResponse.model_rebuild()
+LLMBookParagraph.model_rebuild()
+LLMBookChapter.model_rebuild()
+LLMBookDraft.model_rebuild()
+LLMCallReply.model_rebuild()
