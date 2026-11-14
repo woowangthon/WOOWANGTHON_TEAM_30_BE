@@ -36,6 +36,7 @@ def load(name: str) -> dict:
 def safety() -> dict:
     s = load("eval/talk_safety.json")
     crisis = [(t, rule_risk(t)) for t in s["crisis"]]
+    crisis_new = [(t, rule_risk(t)) for t in s.get("crisis_new", [])]
     forbidden = [(t, bool(FORBIDDEN.search(t))) for t in s["forbidden"]]
     normal = [(t, rule_risk(t), bool(FORBIDDEN.search(t))) for t in s["normal"]]
     return {
@@ -44,6 +45,10 @@ def safety() -> dict:
         "crisis_watch": sum(1 for _, lv in crisis if lv == "watch"),
         "crisis_missed": [t for t, lv in crisis if lv == "none"],
         "crisis_watch_only": [t for t, lv in crisis if lv == "watch"],
+        "crisis_new_total": len(crisis_new),
+        "crisis_new_high": sum(1 for _, lv in crisis_new if lv == "high"),
+        "crisis_new_watch": [t for t, lv in crisis_new if lv == "watch"],
+        "crisis_new_missed": [t for t, lv in crisis_new if lv == "none"],
         "forbidden_total": len(forbidden),
         "forbidden_blocked": sum(1 for _, b in forbidden if b),
         "forbidden_missed": [t for t, b in forbidden if not b],
@@ -136,6 +141,8 @@ def main() -> None:
         Path(a.out).write_text(text, encoding="utf-8")
     s = report["safety"]
     print(f"위기 문장 {s['crisis_total']}개: 위기 전환 {s['crisis_high']} · 주의만 {s['crisis_watch']} · 놓침 {len(s['crisis_missed'])}")
+    if s["crisis_new_total"]:
+        print(f"새 위기 문장 {s['crisis_new_total']}개(규칙을 고친 뒤 새로 씀): 위기 전환 {s['crisis_new_high']} · 주의만 {len(s['crisis_new_watch'])} · 놓침 {len(s['crisis_new_missed'])}")
     print(f"금지 주제 {s['forbidden_total']}개: 막음 {s['forbidden_blocked']} · 놓침 {len(s['forbidden_missed'])}")
     print(f"일상 문장 {s['normal_total']}개: 위기 오탐 {len(s['normal_false_crisis'])} · 주의 오탐 {len(s['normal_false_watch'])} · 금지 오탐 {len(s['normal_false_forbidden'])}")
     if "live" in report:
