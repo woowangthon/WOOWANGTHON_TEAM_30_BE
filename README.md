@@ -81,7 +81,7 @@ createdb -O yeoun yeoun && createdb -O yeoun yeoun_test
 
 `make eval` 결과(mock, 2026-11-09, 검색만): lite 96.7% / kiwi 100% top-3, '맞는 녹음 없음' 4/4.
 
-기억 대화 검증(`cd server && python -m app.eval_talk --live <API 주소>`, 2026-11-15, 배포본 샘플 공간·NOVA): 골든 30문항 모두 실제 녹음으로 답함(기대한 녹음 29~30/30), AI가 만든 답 14개 모두 근거 녹음 붙음·사람 판정 문제 3개, 녹음에 없는 질문 4개 중 안내 2, 위기 문장 규칙 감지 19/20(11/15 규칙 수정 뒤, 수정 전 15/20), 단 규칙 수정 뒤 새로 쓴 위기 문장 10개는 0/10(주의 1), 금지 주제 17/20, 일상 문장 오탐 0. 자세한 표는 [docs/GENAI_USAGE.md](docs/GENAI_USAGE.md).
+기억 대화 검증(`cd server && python -m app.eval_talk --live <API 주소>`, 2026-11-15, 배포본 샘플 공간·NOVA, 보강 뒤): 골든 30문항 기대한 녹음 30/30, 녹음에 없는 질문 4개 모두 지어내지 않고 안내, AI가 만든 답 10개 모두 근거 녹음 붙음·사실을 지어낸 것 0, 규칙 수정 뒤 새로 쓴 위기 문장 10개 모두 위기 전환(LLM 위험도), 위기가 아닌 메시지 54개 오탐 0. 보강 전과의 비교 표는 [docs/GENAI_USAGE.md](docs/GENAI_USAGE.md).
 실제 LLM으로 측정하려면 키를 넣고 `cd server && .venv/bin/python -m app.eval --llm`.
 
 ## AI 공급자 (키를 넣으면 바뀐다)
