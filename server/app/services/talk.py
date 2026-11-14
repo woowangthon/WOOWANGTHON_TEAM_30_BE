@@ -10,7 +10,7 @@
     ④ 아니면 → 페르소나와 근거 녹음으로 만든 답장 (generated, 'AI가 만든 말' + 근거)
        근거가 없거나 거절이면 → 여운 안내 (guide)
 
-AI가 만든 답(generated)은 반드시 generated_reply() 한 곳을 거쳐 나간다(음성 합성을 붙일 자리).
+AI가 만든 답(generated)은 반드시 generated_reply() 한 곳을 거쳐 나간다.
 """
 
 from __future__ import annotations
@@ -117,7 +117,7 @@ def generated_reply(
     """AI가 만든 답장(mode=generated)이 나가는 유일한 자리.
 
     text: 페르소나·근거 녹음으로 만든 말(이미 검증됨), source_ids: 근거 녹음 clip_id 1~3개.
-    음성 합성(태효 쪽 부품)을 붙일 때는 이 함수 안에서 한 줄로 부른다. 지금은 연결하지 않는다.
+    음성 합성을 붙인다면 이 함수 안에서 한 줄로 부른다(지금은 합성하지 않는다).
     """
     return TalkResponse(
         mode="generated",
