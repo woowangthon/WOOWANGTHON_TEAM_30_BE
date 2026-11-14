@@ -117,6 +117,7 @@ __all__ = [
     'TalkResponse',
     'LLMPersonaCard',
     'LLMTalkReply',
+    'LLMSpeakerSplit',
 ]
 
 
@@ -717,6 +718,12 @@ class LLMTalkReply(BaseModel):
     source_clip_ids: list[str] = Field(max_length=4)
 
 
+class LLMSpeakerSplit(BaseModel):
+    """목소리로 화자를 나누지 못한 녹음을 내용으로 나눈 결과. labels는 문장 순서대로 A 또는 B."""
+
+    labels: list[Literal['A', 'B']] = Field(max_length=400)
+
+
 ErrorBody.model_rebuild()
 ErrorResponse.model_rebuild()
 Health.model_rebuild()
@@ -789,3 +796,4 @@ TalkRequest.model_rebuild()
 TalkResponse.model_rebuild()
 LLMPersonaCard.model_rebuild()
 LLMTalkReply.model_rebuild()
+LLMSpeakerSplit.model_rebuild()

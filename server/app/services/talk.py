@@ -53,17 +53,27 @@ FORBIDDEN = re.compile(
 )
 
 
+# 그 사람을 부르며 시작하는 말 ("엄마, …", "여보세요, 할머니?") — 그 사람이 한 말이 아니라 가족이 그분에게 한 말
+ADDRESSED = re.compile(
+    r"^\s*(여보세요[\s,.~!?]*)?(엄마|어머니|어머님|할머니|할매|할미|아빠|아버지|아버님|할아버지|할배)\s*[,.!?~…]"
+)
+
+
+def addressed_to_person(text: str) -> bool:
+    """목소리 확인이 틀렸을 때를 대비한 안전장치: 그분을 부르는 말은 그분의 말로 쓰지 않는다."""
+    return bool(ADDRESSED.match(text or ""))
+
+
 def person_clips(db: Session, space_id: str) -> list[tuple[Clip, Asset]]:
-    """'그 사람'으로 확인된, 자막이 있는 클립 (날짜순)."""
-    return list(
-        db.execute(
-            select(Clip, Asset)
-            .join(Asset, Asset.id == Clip.asset_id)
-            .outerjoin(Speaker, Speaker.id == Clip.speaker_id)
-            .where(Clip.space_id == space_id, included_expr(), func.length(Clip.text) > 0)
-            .order_by(Asset.recorded_at.nullslast(), Asset.created_at, Clip.seq)
-        ).all()
-    )
+    """'그 사람'으로 확인된, 자막이 있는 클립 (날짜순). 그분을 부르는 말은 뺀다."""
+    rows = db.execute(
+        select(Clip, Asset)
+        .join(Asset, Asset.id == Clip.asset_id)
+        .outerjoin(Speaker, Speaker.id == Clip.speaker_id)
+        .where(Clip.space_id == space_id, included_expr(), func.length(Clip.text) > 0)
+        .order_by(Asset.recorded_at.nullslast(), Asset.created_at, Clip.seq)
+    ).all()
+    return [(c, a) for c, a in rows if not addressed_to_person(c.text)]
 
 
 def clip_for_prompt(clip: Clip, asset: Asset) -> dict[str, Any]:

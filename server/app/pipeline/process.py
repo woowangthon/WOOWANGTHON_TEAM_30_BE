@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 from app.ai import guard, registry
 from app.ai.base import ProviderError
 from app.ai.embedding import pack
+from app.ai.speaker_split import split_by_content
 from app.config import get_settings
 from app.db import new_session
 from app.models import Asset, Clip, Space, Speaker, User
@@ -231,6 +232,14 @@ def _process_audio(db: Session, asset: Asset, space: Space) -> None:
                 log.warning("diarize_failed asset=%s code=%s", asset.id, e.code)
                 segments, diarized = [x.model_copy(update={"speaker": None}) for x in segments], False
             dnote = None if diarized else "화자를 나누지 않았어요. 목소리 확인에서 직접 골라 주세요."
+            # 통화·영상인데 목소리가 하나로만 나왔으면(비슷한 목소리·한쪽만 녹음·합성 음성) 내용으로 나눈다
+            voices = {x.speaker for x in segments if x.text.strip()}
+            if asset.origin in ("call", "video", "other") and len(voices) <= 1:
+                llm, _ = registry.build("llm", consent=consent, is_sample=is_sample)
+                split, ok = split_by_content(segments, llm)
+                if ok:
+                    segments, diarized = split, True
+                    dnote = "목소리로는 나뉘지 않아 말한 내용으로 두 사람을 나눴어요. 목소리 확인에서 꼭 들어 보고 골라 주세요."
             _set_stage(db, asset, "diarize", "done" if diarized else "skipped", dnote)
         asset.diarized = diarized
 
