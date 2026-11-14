@@ -59,9 +59,7 @@ def _valid_duration(d: object) -> float | None:
     return v
 
 
-def pick_reference(
-    candidates: Iterable[RefCandidate], preferred_ids: Iterable[str] | None = None
-) -> RefPick:
+def pick_reference(candidates: Iterable[RefCandidate], preferred_ids: Iterable[str] | None = None) -> RefPick:
     """참조 클립을 고른다. preferred_ids 를 주면 그 id 의 후보를 우선 후보로 본다(후보의 preferred 와 OR)."""
     pref = {str(i) for i in (preferred_ids or [])}
 

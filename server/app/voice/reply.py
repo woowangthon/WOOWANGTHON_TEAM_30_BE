@@ -47,6 +47,9 @@ ENV_FAL_KEY = "YEOUN_FAL_API_KEY"
 # provider.synthesize 에 넘길 모델 이름(논리 이름). 실제 fal 모델 ID 로의 연결은 provider.py 가 맡는다.
 DEFAULT_MODEL = "qwen3-tts"
 
+# 참조 음성 형식: 클립 파일은 pipeline/media.cut_clip 이 만든 mp3 다.
+REF_MIME = "audio/mpeg"
+
 MAX_TEXT_CHARS = 300  # talk.py 가 답장을 300자로 자르는 것과 맞춘다
 
 
@@ -106,9 +109,11 @@ def _default_load_audio(space: Any, key: str) -> bytes:
     return blobstore.load(space, key)
 
 
-def _default_synthesize(text: str, ref_audio: bytes, ref_text: str, model: str) -> tuple[bytes, str, float]:
+def _default_synthesize(
+    text: str, ref_audio: bytes, ref_text: str, model: str, **kw: Any
+) -> tuple[bytes, str, float]:
     provider = importlib.import_module("app.voice.provider")
-    return provider.synthesize(text, ref_audio, ref_text, model)
+    return provider.synthesize(text, ref_audio, ref_text, model, **kw)
 
 
 # ---------------------------------------------------------------------------
@@ -146,7 +151,7 @@ def synth_for_reply(
     *,
     clips_loader: Callable[[Any, str], list[tuple[Any, Any]]] | None = None,
     load_audio: Callable[[Any, str], bytes] | None = None,
-    synthesize: Callable[[str, bytes, str, str], tuple[bytes, str, float]] | None = None,
+    synthesize: Callable[..., tuple[bytes, str, float]] | None = None,
     model: str = DEFAULT_MODEL,
     timeout_sec: float = VOICE_REPLY_TIMEOUT_SEC,
 ) -> str | None:
@@ -191,7 +196,7 @@ def _run(
     *,
     clips_loader: Callable[[Any, str], list[tuple[Any, Any]]],
     load_audio: Callable[[Any, str], bytes],
-    synthesize: Callable[[str, bytes, str, str], tuple[bytes, str, float]],
+    synthesize: Callable[..., tuple[bytes, str, float]],
     model: str,
     timeout_sec: float,
     started: float,
@@ -223,7 +228,9 @@ def _run(
             continue
         by_id[cid] = clip
         cands.append(
-            RefCandidate(id=cid, duration=_duration(clip), has_text=bool(str(getattr(clip, "text", "") or "").strip()))
+            RefCandidate(
+                id=cid, duration=_duration(clip), has_text=bool(str(getattr(clip, "text", "") or "").strip())
+            )
         )
     pick = pick_reference(cands, _ids(source_ids))
     if not pick.usable:
@@ -250,7 +257,17 @@ def _run(
         raise _Skip("timeout")
     ex = concurrent.futures.ThreadPoolExecutor(max_workers=1, thread_name_prefix="yeoun-voice")
     try:
-        fut = ex.submit(synthesize, say, ref_audio, ref_text, model)
+        # 남은 시간을 공급자에게도 넘겨, 여기서 포기한 뒤 공급자 스레드가 뒤에서 오래 남지 않게 한다.
+        fut = ex.submit(
+            synthesize,
+            say,
+            ref_audio,
+            ref_text,
+            model,
+            ref_seconds=pick.total_sec,
+            ref_mime=REF_MIME,
+            timeout=left,
+        )
         try:
             result = fut.result(timeout=left)
         except concurrent.futures.TimeoutError as e:

@@ -52,9 +52,11 @@ class FakeSynth:
         self.result = result
         self.exc = exc
         self.calls: list[tuple] = []
+        self.kwargs: list[dict] = []
 
-    def __call__(self, text, ref_audio, ref_text, model):
+    def __call__(self, text, ref_audio, ref_text, model, **kw):
         self.calls.append((text, ref_audio, ref_text, model))
+        self.kwargs.append(kw)
         if self.exc:
             raise self.exc
         return self.result
@@ -109,6 +111,10 @@ def test_success_returns_data_url(monkeypatch):
     assert ref_audio == b"MP3:c1.mp3MP3:c2.mp3"  # 고른 클립을 이어 붙인 참조
     assert ref_text == "자막 자막"
     assert model == DEFAULT_MODEL
+    kw = s.kwargs[0]
+    assert kw["ref_seconds"] == 11  # 6 + 5초
+    assert kw["ref_mime"] == "audio/mpeg"
+    assert 0 < kw["timeout"] <= VOICE_REPLY_TIMEOUT_SEC  # 남은 시간을 공급자에게 넘긴다
 
 
 def test_source_ids_are_preferred_reference(monkeypatch):
@@ -134,8 +140,9 @@ def test_default_path_uses_provider_module(monkeypatch):
     on(monkeypatch)
     seen = {}
 
-    def fake_synthesize(text, ref_audio, ref_text, model):
+    def fake_synthesize(text, ref_audio, ref_text, model, **kw):
         seen["args"] = (text, ref_audio, ref_text, model)
+        seen["kw"] = kw
         return b"ok", "audio/wav", 0.0
 
     mod = types.ModuleType("app.voice.provider")
@@ -173,7 +180,7 @@ def test_provider_timeout_returns_none_quickly(monkeypatch):
     on(monkeypatch)
     release = threading.Event()
 
-    def slow(text, ref_audio, ref_text, model):
+    def slow(text, ref_audio, ref_text, model, **kw):
         release.wait(5)
         return b"late", "audio/wav", 5.0
 
@@ -189,7 +196,15 @@ def test_provider_timeout_returns_none_quickly(monkeypatch):
 
 def test_bad_provider_output_returns_none(monkeypatch):
     on(monkeypatch)
-    for bad in [None, "x", (b"", "audio/wav", 0), (b"a", "text/html", 0), (b"a", None, 0), (b"a",), ("a", "audio/wav", 0)]:
+    for bad in [
+        None,
+        "x",
+        (b"", "audio/wav", 0),
+        (b"a", "text/html", 0),
+        (b"a", None, 0),
+        (b"a",),
+        ("a", "audio/wav", 0),
+    ]:
         assert call(synthesize=FakeSynth(result=bad)) is None, bad
 
 
@@ -233,7 +248,9 @@ def test_weird_arguments_never_raise(monkeypatch):
         out = call(args=args, synthesize=s)
         assert out is None or out.startswith("data:audio/"), args
     # 클립 행 모양이 이상해도 던지지 않는다
-    assert call(clips_loader=lambda db, sid: [None, 3, ("x",), (SimpleNamespace(id=1),)], synthesize=s) is None
+    assert (
+        call(clips_loader=lambda db, sid: [None, 3, ("x",), (SimpleNamespace(id=1),)], synthesize=s) is None
+    )
     assert call(clips_loader=lambda db, sid: None, synthesize=s) is None
 
 
@@ -263,7 +280,11 @@ def test_logs_do_not_contain_text_subtitles_keys_or_filenames(monkeypatch):
     try:
         loader = rows_of(clip("secretclip", 6, text="비밀자막"), clip("c2", 5, text="비밀자막2"))
         call(args=(DB, SPACE, "비밀문장", []), clips_loader=loader, synthesize=FakeSynth())
-        call(args=(DB, SPACE, "비밀문장", []), clips_loader=loader, synthesize=FakeSynth(exc=RuntimeError("비밀문장")))
+        call(
+            args=(DB, SPACE, "비밀문장", []),
+            clips_loader=loader,
+            synthesize=FakeSynth(exc=RuntimeError("비밀문장")),
+        )
         call(args=(DB, SPACE, "비밀문장", []), clips_loader=rows_of(clip("secretclip", 1, text="비밀자막")))
     finally:
         lg.removeHandler(h)
