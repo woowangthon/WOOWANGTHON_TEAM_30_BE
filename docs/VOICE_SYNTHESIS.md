@@ -84,11 +84,11 @@ BE `server/app/voice/ref.py`와 FE `src/lib/voice-ref.ts`가 같은 기준이에
 | `qwen3-tts` (기본, `reply.DEFAULT_MODEL`) | 1단계 `fal-ai/qwen-3-tts/clone-voice/1.7b` → 2단계 `fal-ai/qwen-3-tts/text-to-speech/1.7b` | 1단계에서 참조 음성으로 화자 임베딩 파일을 만들고, 2단계에서 그 파일로 문장을 합성. 언어 `Korean` | 보냄(선택) |
 | `chatterbox` | `fal-ai/chatterbox/text-to-speech/multilingual` | 1단계. 참조 음성 주소를 `voice`로, `custom_audio_language`는 `korean` | 받는 필드가 없어 보내지 않음 |
 
-- 긴 문장은 문장 단위로 묶어 300자 이하 조각으로 나눠 요청하고 결과를 이어 붙여요(`MAX_CHUNK_CHARS`). Chatterbox의 `text`가 최대 300자예요. Qwen의 글자 수 제한은 미확인이라 같은 상한을 보수적으로 써요.
+- 긴 문장은 문장 단위로 묶어 조각으로 나눠 요청하고 결과를 이어 붙여요. Chatterbox는 300자 이하(`MAX_CHUNK_CHARS`, 문서의 `text` 최대 300자), Qwen은 100자 이하(`QWEN_MAX_CHUNK_CHARS`)예요. Qwen의 글자 수 제한은 미확인이고, `max_new_tokens` 기본값이 200(문서)인데 이 값을 보내지 않아서 긴 조각이 잘릴 수 있어요. 그래서 보수적으로 100자로 잡았고 **실제 호출로 확인이 필요해요.**
 - 호출은 큐 방식이에요: 제출 → 응답이 준 `status_url` 폴링 → `response_url` 결과 → `audio.url` 내려받기 → 삭제 API. 상태·결과 주소는 직접 조립하지 않고 응답이 준 것을 그대로 써요.
 - 큐로 부르는 이유는 삭제 API에 필요한 `request_id`를 큐 제출 응답에서 얻기 때문이에요. 동기 주소 응답에서 `request_id`를 얻는 방법은 미확인이에요.
 - 하위 경로가 있는 endpoint_id를 큐 제출 주소에 그대로 쓰는 것은 문서 예시 기준이고, 실제 호출로는 **미확인**이에요.
-- 두 모델의 참조 음성 형식·길이 제한(Qwen 복제는 최대 300초라고 문서에 있고, Chatterbox는 미확인)과 Qwen 참조 자막 길이 제한은 미확인이에요. Qwen·Chatterbox의 품질 비교는 아직 하지 않았어요(AI 저장소 `eval/tts_compare.py`가 비교 도구이고, 결과 표는 비어 있어요).
+- 참조 음성이 300초를 넘으면 호출하지 않고 `bad_input`이에요(`MAX_REF_SEC`). Qwen 복제의 최대 300초(문서)이고, Chatterbox는 미확인이라 같은 값을 적용했어요. 두 모델의 참조 음성 형식 제한과 Qwen 참조 자막 길이 제한은 미확인이에요. Qwen·Chatterbox의 품질 비교는 아직 하지 않았어요(AI 저장소 `eval/tts_compare.py`가 비교 도구이고, 결과 표는 비어 있어요).
 - `provider.synthesize()`는 키워드 인자 `provider="fal"`(기본)을 받아요. 키가 없으면 mock 으로 대신하지 않고 `ProviderError("not_configured")`를 올려요. 네트워크 없는 무음 WAV(mock)는 `provider="mock"`을 명시할 때만 나와요(개발·테스트용). `reply.py`는 언제나 `provider="fal"`로 부르고, 키가 없으면 공급자를 아예 부르지 않아요. `provider_name()`은 없어졌어요.
 - `ProviderError` 코드: `not_configured`(fal 키 없음), `bad_input`(빈 문장·빈 참조·모르는 모델·모르는 참조 형식·모르는 provider), `ref_too_short`(참조 3초 미만이거나 길이를 알 수 없음), `timeout`(전체 상한 또는 HTTP 시간 초과), `http_error`(HTTP 오류, fal 이 알린 오류), `bad_output`(응답 모양이 이상함, 음성 서명이 아님, 형식이 섞임).
 - 내려받은 음성은 File 의 `content_type`, HTTP 응답 헤더, 파일 앞부분 서명 순으로 형식을 정하고, 언제나 서명으로 교차 확인해요. 음성이 아닌 응답(HTML 등)은 `bad_output`이에요.
@@ -107,19 +107,22 @@ BE `server/app/voice/ref.py`와 FE `src/lib/voice-ref.ts`가 같은 기준이에
 1. **`X-Fal-Store-IO: 0`** — 제출·상태 확인·결과 요청과 취소·삭제 요청에 넣어요(헤더 구성은 아래 표). 요청 기록의 JSON 입출력 저장을 끄는 헤더예요(기본은 저장, 90일). **CDN 파일에는 적용되지 않아요.** 적용되는 엔드포인트 범위는 미확인이에요.
 2. **`X-Fal-Object-Lifecycle-Preference: {"expiration_duration_seconds": 3600}`** — 생성 파일(CDN)의 보관 기간을 3600초(1시간)로 해요. 값은 문서 예시를 그대로 쓴 것이고, **가능한 최소값은 미확인**이에요(더 짧게 할 수 있는지 모름).
 3. **참조 음성을 CDN 에 올리지 않고 요청에 직접 실어요.** `data:<mime>;base64,...` 주소를 입력 파일 자리에 넣어요. 두 모델 API 문서의 Files 절에 "Base64 data URI 를 파일 입력으로 줄 수 있다"고 적혀 있어서 그렇게 했고, 크기 제한은 미확인이에요. 입력은 CDN 에 올라가지 않으니 입력 파일에 대한 삭제는 필요 없어요(삭제 API 도 입력 CDN 파일은 지우지 않아요).
-4. **끝난 뒤 삭제 API 를 불러요.** `DELETE https://api.fal.ai/v1/models/requests/{request_id}/payloads`를 요청마다 시도해요(실패·시간 초과 뒤에도 시도). 끝나지 않은 요청은 먼저 취소(`PUT cancel_url`)하고, 정리 한도(5초) 안에서 `status_url`을 짧게 확인해 끝난 것으로 보이면 삭제해요. **다만 지워진다고 보장하지 못해요.** fal 문서상 끝나지 않은 요청의 삭제는 400 이라, 시간 초과·실패로 끝난 요청은 지우지 못할 수 있어요. 그 경우 예외 없이 코드만 로그에 남기고(`fal_payload_not_deleted`), fal 쪽 결과 파일은 보관 기간 헤더(3600초)에만 의존해 사라져요. 취소된 요청이 상태 확인에서 어떻게 보이는지(`COMPLETED`로 바뀌는지)와 그 뒤 삭제가 되는지는 실제 fal 동작으로 **미확인**이에요. 같은 한계가 AI 저장소 `eval/tts_compare.py`에도 있어요(시간 초과 때 취소 후 삭제 시도).
+4. **끝난 뒤 삭제 API 를 불러요.** `DELETE https://api.fal.ai/v1/models/requests/{request_id}/payloads`를 요청마다 시도해요(실패·시간 초과 뒤에도 시도). 끝나지 않은 요청은 먼저 취소(`PUT cancel_url`)하고, 정리 한도(5초) 안에서 `status_url`을 짧게 확인해 끝난 것으로 보이면 삭제해요. **이 정리는 결과(또는 오류)를 돌려준 뒤 별도 데몬 스레드에서 돌아서, 답장 대기 시간에 더해지지 않아요.** `wait_cleanup=True`를 주면 돌려주기 전에 끝까지 정리해요(평가·미리 듣기용). `wait_for_cleanups(timeout=None)`은 뒤에서 도는 정리가 모두 끝날 때까지 기다려요. 정리 스레드 안의 예외는 모두 삼키고 코드만 로그에 남겨요. **다만 지워진다고 보장하지 못해요.** (a) fal 문서상 끝나지 않은 요청의 삭제는 400 이라, 시간 초과·실패로 끝난 요청은 지우지 못할 수 있어요. (b) 데몬 스레드라 서버 프로세스가 끝나면 정리가 끊길 수 있어요. 두 경우 모두 fal 쪽 결과 파일은 보관 기간 헤더(3600초)에만 의존해 사라져요. 지우지 못하면 예외 없이 코드만 로그에 남겨요(`fal_payload_not_deleted`). 취소된 요청이 상태 확인에서 어떻게 보이는지(`COMPLETED`로 바뀌는지)와 그 뒤 삭제가 되는지는 실제 fal 동작으로 **미확인**이에요. AI 저장소 `eval/tts_compare.py`는 중간에 어떤 예외나 Ctrl+C 로 멈춰도 제출한 요청 전부에 취소·삭제를 시도하고 `results.json`을 저장해요. 같은 한계(끝나지 않은 요청의 삭제)가 있어요.
 5. **Qwen 2단계에서 생기는 화자 임베딩 파일.** 1단계 결과인 `speaker_embedding`(safetensors)은 fal CDN 에 생기고, 2단계가 그 주소를 받아 써요. 이 파일은 1단계 요청의 출력이라서 위 2번(보관 기간)과 4번(삭제) 대상이에요. 정상 종료한 요청이면 삭제 API 가 지워야 하고, 실패·시간 초과로 끝났다면 보관 기간 헤더에만 의존해요. 어느 쪽이든 실제로 지워지는지는 **미확인**이에요. Chatterbox는 이 파일이 생기지 않아요.
 
 요청 종류별 헤더(`provider.py` 기준):
 
 | 요청 | 헤더 |
 |---|---|
-| 큐 제출, 상태 확인, 결과 요청 | `Authorization`, `X-Fal-Store-IO: 0`, `X-Fal-Object-Lifecycle-Preference`, `X-Fal-Request-Start-Timeout` |
-| 취소, 삭제 | `Authorization`, `X-Fal-Store-IO: 0` (보관 기간·시작 대기 헤더는 넣지 않음) |
+| 큐 제출, 합성 중 상태 폴링, 결과 요청 (4개) | `Authorization`, `X-Fal-Store-IO: 0`, `X-Fal-Object-Lifecycle-Preference`, `X-Fal-Request-Start-Timeout` |
+| 정리 단계의 취소·상태 확인·삭제 (2개) | `Authorization`, `X-Fal-Store-IO: 0` (보관 기간·시작 대기 헤더는 넣지 않음) |
 | 결과 파일(CDN) 내려받기 | 헤더 없음(키를 보내지 않음) |
+
+키(`Authorization`)를 붙이는 주소는 제출 주소와 삭제 주소(코드 상수)와, fal 응답이 준 `status_url`·`response_url`·`cancel_url`이에요. 응답이 준 주소는 `https`이고 호스트가 `queue.fal.run`(`FAL_QUEUE_HOST`)일 때만 쓰고, 아니면 `bad_output`으로 끝내요(키가 다른 호스트로 나가지 않게).
 
 그 밖에 문서에서 확인하지 못해 미확인으로 남긴 것:
 
+- Qwen `max_new_tokens` 기본 200 으로 긴 조각이 잘릴 수 있는지(실제 호출로 확인 필요)
 - 보관 기간의 최소값, 계정 기본 설정과 헤더 값이 충돌할 때의 우선순위
 - `X-Fal-Store-IO: 0` 이 두 모델 엔드포인트에 실제로 적용되는지
 - fal 이 입력 데이터를 모델 개선·학습에 쓰는지 여부(조사에서 다루지 않았어요)
@@ -129,14 +132,18 @@ BE `server/app/voice/ref.py`와 FE `src/lib/voice-ref.ts`가 같은 기준이에
 
 | 이름 | 값 | 어디에 | 뜻 |
 |---|---|---|---|
-| `VOICE_REPLY_TIMEOUT_SEC` | 15.0초 | `reply.py` | 합성 호출의 상한. 넘으면 합성을 버리고 `None`(글자만). **엄밀한 상한이 아니에요**: 그분 클립 DB 조회(`person_clips`) 한 번과 저장소 읽기(`blobstore.load`) 한 번에는 이 제한이 걸리지 않고, 읽기 사이사이에만 남은 시간을 확인해요(DB 세션이 스레드 간에 안전하지 않아 다른 스레드로 옮기지 않았어요). 남은 시간을 공급자 `timeout`으로 넘겨 공급자 스레드가 오래 남지 않게 하지만, 취소·상태 확인·삭제 정리는 그 뒤에도 뒤에서 더 남을 수 있고 결과는 버려요 |
+| `VOICE_REPLY_TIMEOUT_SEC` | 15.0초 | `reply.py` | 합성 호출의 상한. 넘으면 합성을 버리고 `None`(글자만). **엄밀한 상한이 아니에요**: 그분 클립 DB 조회(`person_clips`) 한 번과 저장소 읽기(`blobstore.load`) 한 번에는 이 제한이 걸리지 않고, 읽기 사이사이에만 남은 시간을 확인해요(DB 세션이 스레드 간에 안전하지 않아 다른 스레드로 옮기지 않았어요). 남은 시간을 공급자 `timeout`으로 넘겨 공급자 스레드가 오래 남지 않게 해요. 취소·상태 확인·삭제 정리는 결과를 돌려준 뒤 별도 데몬 스레드에서 돌아서 답장 대기에 더해지지 않아요(2-5) |
 | `DEFAULT_TIMEOUT_SEC` | 60.0초 | `provider.py` | `synthesize()` 전체 상한 기본값. `reply.py`는 남은 시간을 넘겨요 |
 | `HTTP_TIMEOUT_SEC` | 15.0초 | `provider.py` | HTTP 요청 하나의 상한(남은 시간이 더 짧으면 그만큼) |
-| `CLEANUP_TIMEOUT_SEC` | 5.0초 | `provider.py` | 끝나지 않은 요청 하나의 '취소 + 상태 확인' 전체 상한, 그리고 삭제 요청 하나의 상한. 전체 상한이 지난 뒤에도 정리는 이 한도 안에서 시도해요 |
+| `CLEANUP_TIMEOUT_SEC` | 5.0초 | `provider.py` | 끝나지 않은 요청 하나의 '취소 + 상태 확인' 전체 상한, 그리고 삭제 요청 하나의 상한. 전체 상한이 지난 뒤에도 정리는 이 한도 안에서 뒤쪽 스레드로 시도해요 |
 | `POLL_INTERVAL_SEC` | 0.5초 | `provider.py` | 상태 폴링 간격 |
 | `X-Fal-Request-Start-Timeout` | 남은 시간(초, 올림, 최소 1) | `provider.py` | 처리 시작 전 대기 제한. 만료 시 504 |
 | `OBJECT_LIFECYCLE_SEC` | 3600초 | `provider.py` | fal CDN 생성 파일 보관 기간 요청값 |
-| `MAX_CHUNK_CHARS` / `MAX_TEXT_CHARS` | 300자 / 300자 | `provider.py` / `reply.py` | 한 번에 보내는 문장 상한 / 답장 글자 상한(`talk.py`가 300자로 자르는 것과 맞춤) |
+| `MAX_CHUNK_CHARS` | 300자 | `provider.py` | Chatterbox 한 번에 보내는 문장 상한(문서의 `text` 최대 300자) |
+| `QWEN_MAX_CHUNK_CHARS` | 100자 | `provider.py` | Qwen 조각 상한. 글자 수 제한이 미확인이고 `max_new_tokens` 기본 200 을 보내지 않아 긴 조각이 잘릴 수 있어 보수적으로 잡은 값. 실제 호출로 확인 필요 |
+| `MAX_REF_SEC` | 300.0초 | `provider.py` | 참조 음성 최대 길이. 넘으면 `bad_input`. Qwen 문서값이고 Chatterbox는 미확인이라 같은 값 적용 |
+| `MAX_TEXT_CHARS` | 300자 | `reply.py` | 답장 글자 상한(`talk.py`가 300자로 자르는 것과 맞춤) |
+| `FAL_QUEUE_HOST` | `queue.fal.run` | `provider.py` | 응답이 준 상태·결과·취소 주소를 믿는 호스트 |
 | `GUIDE_TIMEOUT_SEC` | 20.0초 | `guide.py` | 안내 목소리 요청 하나의 시간 제한 |
 | `MAX_INPUT_CHARS` | 4000자 | `guide.py` | 안내 문장 상한. 넘으면 자르지 않고 `None` |
 
@@ -155,8 +162,8 @@ BE `server/app/voice/ref.py`와 FE `src/lib/voice-ref.ts`가 같은 기준이에
 
 - 주소 `POST https://factchat-cloud.mindlogic.ai/v1/gateway/audio/speech/`, 인증 `Authorization: Bearer <키>`, 모델 `gemini-3.8-flash-tts`(문서의 최신·권장 모델), 목소리 `Schedar`(문서가 30종 중 "차분함"이라고 적은 것은 이것 하나).
 - 요청 필드는 `model`, `input`, `voice`만 보내요. 필수 여부는 문서에 명시가 없어서(미확인) 셋을 모두 보내요. `speakers`·`instructions`·`response_format`은 쓰지 않아요.
-- 응답은 머리말 없는 원시 PCM(24,000Hz 모노 16비트 리틀 엔디안)이라 표준 `wave` 모듈로 WAV 로 감싸요(ffmpeg 불필요). 문서에 있는 Content-Type `audio/pcm`만 WAV 로 감싸고, 그 밖의 응답(mpeg 포함)은 `None`이에요. 문서에 없는 방어 분기로, 본문이 이미 RIFF/WAVE 서명이 붙은 WAV 면 그대로 실어요. 결과는 언제나 `data:audio/wav;base64,...`예요.
-- 밖으로 나가는 데이터는 **NOVA 에 보내는 안내 문장**이에요. 그분의 음성·자막은 나가지 않아요. 하지만 **문장에 그분 이름이 들어 있으면 이름도 나가요.** `talk.py`·`chat.py`에서 확인하면 `{person}`(= `space.person_name`)이 들어가는 안내 문장은 `FORBIDDEN_TEXT`, `NO_ANSWER_TEXT`, `chat.py`의 `NO_CLIPS_PENDING_GUIDE`·`NO_CLIPS_EMPTY_GUIDE`(`_no_clips_guide`)예요. `NO_AI_TEXT`와 위기 안내(`CRISIS_TEXT`)에는 이름이 없어요. 이름을 빼고 읽히게 하려면 붙이는 쪽에서 `_guide()`가 `guide_voice()`에 넘기는 문장의 이름을 "그분" 같은 말로 바꿔서 넘겨야 해요(화면에 보이는 글자는 그대로 둘 수 있어요).
+- 응답은 머리말 없는 원시 PCM(24,000Hz 모노 16비트 리틀 엔디안)이라 표준 `wave` 모듈로 WAV 로 감싸요(ffmpeg 불필요). 문서에 있는 Content-Type `audio/pcm`일 때만 WAV 로 감싸고, 그 밖의 응답(mpeg·wav 포함)은 모두 `None`이에요. 결과는 언제나 `data:audio/wav;base64,...`예요.
+- 밖으로 나가는 데이터는 **NOVA 에 보내는 안내 문장**이에요. 그분의 음성·자막은 나가지 않아요. 하지만 **문장에 그분 이름이 들어 있으면 이름도 나가요.** `{person}`(= `space.person_name`)이 들어가는 안내 문장은 `server/app/services/talk.py`의 `FORBIDDEN_TEXT`, `NO_ANSWER_TEXT`와 `server/app/services/chat.py`의 `NO_CLIPS_PENDING_GUIDE`·`NO_CLIPS_EMPTY_GUIDE`(`_no_clips_guide`)예요(`routers/chat.py`가 아니에요). `NO_AI_TEXT`와 위기 안내(`CRISIS_TEXT`)에는 이름이 없어요. 이름을 빼고 읽히게 하려면 붙이는 쪽에서 `_guide()`가 `guide_voice()`에 넘기는 문장의 이름을 "그분" 같은 말로 바꿔서 넘겨야 해요(화면에 보이는 글자는 그대로 둘 수 있어요).
 - 빈 문장, 4,000자 초과, 키 없음, 403(조직에서 모델 꺼짐), 429(게이트웨이 공통 60초당 120건), 503(점검), 시간 초과, 이상한 응답은 모두 `None`이에요. 예외를 던지지 않아요.
 - NOVA 가 서버에 문장을 얼마나 보관하는지는 이 문서 페이지에 없어 미확인이에요(`privacy.md` 6장의 NOVA 행은 `[확인 필요]`로 남아 있어요).
 
@@ -227,20 +234,38 @@ mime 은 공급자 결과를 그대로 따라서(`audio/wav`, `audio/mpeg`) 고�
 `VoiceRefPicker`는 props 로만 동작하고 API 를 부르지 않아요.
 
 ```tsx
+// 부모가 들고 있는 상태: previewStatus("idle"|"loading"|"ready"|"error"), previewAudioUrl, previewIds, previewError
 <VoiceRefPicker
   clips={personClips}                 // 그분으로 확인된 클립 (Clip 을 그대로 넘겨도 돼요)
   selectedIds={selectedIds}
   onSelectedChange={setSelectedIds}
-  onPreview={(ids) => { /* 미리 듣기 API 호출 → previewAudioUrl 채우기 */ }}
-  onApprove={(ids) => { /* 승인 API 호출. ids 는 현재 선택이 아니라 '미리 들은 구간 id' 예요 */ }}
-  onReject={() => setSelectedIds([])}
-  previewStatus={previewStatus}       // "idle" | "loading" | "ready" | "error"
-  previewAudioUrl={previewAudioUrl}   // data: 주소
+  onPreview={async (ids) => {
+    const my = ++requestSeq.current;  // 늦게 온 이전 응답을 버리려는 번호
+    setPreviewStatus("loading");
+    const res = await requestPreview(ids);          // 미리 듣기 API (아직 없음)
+    if (my !== requestSeq.current) return;          // 늦게 온 이전 응답은 버림
+    // 결과가 오면 상태·음성 주소·만든 id 를 한 번에 바꿔요
+    setPreview({ status: "ready", url: res.audioUrl, ids });
+  }}
+  onApprove={(ids) => { /* 승인 API 호출. ids 는 previewIds 예요 */ }}
+  onReject={() => {
+    requestSeq.current++;
+    setPreview({ status: "idle", url: null, ids: null });   // 상태를 모두 초기화
+  }}
+  previewStatus={preview.status}
+  previewAudioUrl={preview.url}
+  previewIds={preview.ids}            // 그 음성을 만든 참조 클립 id
   previewError={previewError}
 />
 ```
 
-`onApprove(ids)`가 넘기는 것은 현재 선택이 아니라 **미리 들은 구간의 id**예요. 미리 듣기 뒤에 선택이 바뀌면(`sameIdSet`으로 비교) 승인 버튼이 숨고 다시 듣게 해요. 로딩 중에는 체크박스와 버튼이 잠겨요.
+`onApprove(ids)`가 넘기는 `ids`는 현재 선택이 아니라 **`previewIds`(그 미리 듣기 음성을 만든 참조 클립 id)**예요. 승인 UI 는 `voice-ref.ts`의 `canApprovePreview`가 참일 때만 보여요: 상태가 `ready`이고, 음성 주소가 있고, 거절한 음성이 아니고, `previewIds`가 비어 있지 않고, 현재 선택과 같은 집합(`sameIdSet`)일 때예요. 미리 듣기 뒤에 선택이 바뀌면 승인 버튼이 숨고 "고른 부분이 바뀌었어요. 다시 들어 보세요."가 나와요. 로딩 중에는 체크박스와 버튼이 잠겨요. 이름이 바뀌는 재생 버튼(`aria-label`이 듣기/멈추기로 바뀌는 버튼)에는 `aria-pressed`를 쓰지 않아요.
+
+**부모가 지켜야 할 계약** (컴포넌트는 props 로만 동작하고 API 를 부르지 않아서, 부모가 지켜야 해요):
+
+1. `previewAudioUrl`과 `previewIds`는 같은 합성 결과의 쌍이에요. 함께 갱신해요.
+2. `onPreview`에서 `loading`으로 바꾸고, 응답이 오면 `ready`·음성 주소·`previewIds`를 한 번에 바꿔요. 늦게 온 이전 응답은 버려요.
+3. `onReject`에서 `idle`·`null`·`null`로 초기화해요. 예전 예시처럼 `setSelectedIds([])`만 하면 미리 듣기 상태가 남아서 안 돼요.
 
 ### 4-5. 설정 토글
 
@@ -288,6 +313,8 @@ FE `next.config.ts`는 `Referrer-Policy`, `X-Content-Type-Options`, `X-Frame-Opt
 | 실제 fal·NOVA 호출 확인, 지연 시간·품질 측정, 합성 음성 크기 측정 | 안 함(키 없음) |
 | 합성·안내 음성 재생 중 원본 녹음(`ClipPlayer`)을 눌렀을 때 소리 겹침 방지 | 없음. `ClipPlayer`가 자체 `new Audio()`를 써서 겹칠 수 있어요. `ClipPlayer`를 고쳐야 해요(연결할 때 할 일) |
 | 실패·시간 초과로 끝난 fal 요청의 결과 파일을 확실히 지우기 | 보장 못 함. 끝나지 않은 요청의 삭제는 fal 문서상 400 이라, 그 경우 보관 기간 헤더(3600초)에만 의존해요. 실제 fal 동작은 미확인 |
+| 실제 LAME 으로 인코딩한 mp3 로 `join_mp3`(머리 프레임 떼기·잇기) 확인 | 안 함 |
+| 참조 클립 합계가 10초 이상 되도록 보장 | 없음. 고르는 방식상(15초를 넘는 클립은 건너뜀) 10초에 못 미칠 수 있어요(BE·FE 동일). 3초 이상이면 합성은 가능해요 |
 | Qwen·Chatterbox 품질 비교 | 도구(`AI/eval/tts_compare.py`)만 있고 결과 표는 비어 있음 |
 
 ---
@@ -296,10 +323,10 @@ FE `next.config.ts`는 `Referrer-Policy`, `X-Content-Type-Options`, `X-Frame-Opt
 
 | 무엇 | 결과 |
 |---|---|
-| BE 새 voice 테스트 78개 (`test_voice_ref.py`, `test_voice_reply.py`, `test_voice_provider.py`, `test_voice_guide.py`) | `conftest` 없이 통과 (`pytest --noconftest`). 이 테스트들은 DB 와 실제 fal·NOVA 를 쓰지 않고 가짜 응답으로 돌려요 |
-| BE `tests` 전체를 conftest 없이 돌린 결과 | 128 통과, 63 오류, 실패 0. 오류는 전부 DB 픽스처가 필요한 기존 테스트예요 |
+| BE 새 voice 테스트 91개 (`test_voice_ref.py`, `test_voice_reply.py`, `test_voice_provider.py`, `test_voice_guide.py`) | `conftest` 없이 통과 (`pytest --noconftest`). 이 테스트들은 DB 와 실제 fal·NOVA 를 쓰지 않고 가짜 응답으로 돌려요 |
+| BE `tests` 전체를 conftest 없이 돌린 결과 | 141 통과, 63 오류, 실패 0. 오류는 전부 DB 픽스처가 필요한 기존 테스트예요 |
 | BE 기존 테스트 63개 (`test_principles`의 합성 경로 검사 포함) | PostgreSQL 이 필요한데 작업 컴퓨터에 DB 가 없어 **실행하지 못했어요** |
-| FE vitest 41개, eslint, tsc | 통과 |
+| FE vitest 49개, eslint, tsc | 통과. 다만 FE 컴포넌트의 클릭 흐름은 jsdom 이 없어 자동 테스트가 없고(판정 함수만 테스트), 브라우저에서 눌러 보지 못했어요 |
 | 실제 fal·NOVA 호출 | **하지 않음** (`YEOUN_FAL_API_KEY`, `YEOUN_NOVA_API_KEY` 없음) |
 
 키가 생기면 먼저 할 일: (1) `eval/tts_compare.py`로 두 모델을 팀원 본인 녹음으로 비교, (2) 큐 제출 주소·`data:` 주소 입력·헤더 3종이 실제로 먹는지 확인, (3) fal 에서 요청 기록·CDN 파일이 실제로 남지 않는지 확인.
